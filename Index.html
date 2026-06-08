@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Equipment Service Tracker + GAS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* ========== GLOBAL STYLES (เหมือนเดิม) ========== */
+        :root {
+            --primary-color: #0f172a;
+            --secondary-color: #0284c7;
+            --bg-color: #f1f5f9;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --border-color: #cbd5e1;
+            --success-color: #15803d;
+            --warning-color: #b45309;
+            --danger-color: #b91c1c;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; min-width: 1200px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 12px; border-bottom: 3px solid var(--secondary-color); }
+        h1 { color: var(--primary-color); font-size: 22px; }
+        .header-right-zone { display: flex; align-items: center; gap: 15px; }
+        .menu-hamburger-btn { background: none; border: none; font-size: 26px; cursor: pointer; color: var(--primary-color); padding: 5px 10px; border-radius: 6px; transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
+        .menu-hamburger-btn:hover { background: #e2e8f0; }
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px; }
+        .search-wrapper { display: flex; align-items: center; gap: 10px; background: white; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); width: 400px; }
+        .search-wrapper input { border: none; outline: none; width: 100%; font-size: 14px; padding: 4px; }
+        .table-info-bar { font-size: 13px; color: #64748b; font-weight: 500; }
+        .btn { background-color: var(--secondary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; white-space: nowrap; }
+        .btn:hover { background-color: var(--primary-color); }
+        .btn-danger { background-color: var(--danger-color); }
+        .btn-danger:hover { background-color: #991b1b; }
+        .btn-secondary { background-color: #475569; }
+        .btn-secondary:hover { background-color: #334155; }
+        .btn-success { background-color: var(--success-color); }
+        .btn-success:hover { background-color: #166534; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .table-container { background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid var(--border-color); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 10px 14px; border-bottom: 1px solid var(--border-color); font-size: 13px; }
+        th { background-color: #e2e8f0; color: var(--primary-color); font-weight: 700; }
+        tr:hover { background-color: #f8fafc; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 5px; }
+        .badge-progress { background-color: #fef3c7; color: var(--warning-color); }
+        .badge-completed { background-color: #dcfce7; color: var(--success-color); }
+
+        /* Sidebar */
+        .sidebar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 4500; display: none; }
+        .sidebar-menu { position: fixed; top: 0; right: -320px; width: 320px; height: 100%; background: #1e293b; color: #f8fafc; box-shadow: -5px 0 25px rgba(0,0,0,0.3); z-index: 4600; display: flex; flex-direction: column; transition: right 0.3s ease; }
+        .sidebar-menu.active { right: 0; }
+        .sidebar-header { padding: 20px; background: #0f172a; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .sidebar-close-btn { background: none; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; }
+        .sidebar-close-btn:hover { color: #f8fafc; }
+        .sidebar-links-zone { flex-grow: 1; padding: 20px 0; display: flex; flex-direction: column; gap: 5px; overflow-y: auto; }
+        .sidebar-section-title { padding: 10px 20px 5px 20px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; font-weight: 700; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: #cbd5e1; text-decoration: none; font-size: 14px; transition: all 0.2s; cursor: pointer; border-left: 4px solid transparent; }
+        .sidebar-item:hover, .sidebar-item.active { background: #334155; color: #fff; border-left-color: var(--secondary-color); }
+        .sidebar-footer { padding: 15px 20px; background: #0f172a; border-top: 1px solid #334155; }
+        .btn-logout { width: 100%; background: #cbd5e1; color: #0f172a; border: none; padding: 10px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
+        .btn-logout:hover { background: #b91c1c; color: white; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
+        .modal-box { background-color: var(--card-bg); width: 1150px; max-height: 96vh; border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); overflow: hidden; }
+        .modal-header { background-color: var(--primary-color); color: white; padding: 12px 20px; font-size: 16px; font-weight: 600; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+        #job-form { display: flex; flex-direction: column; overflow: hidden; flex-grow: 1; }
+        .modal-body { padding: 15px 20px; overflow-y: auto; flex-grow: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 15px; }
+        .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; background-color: #f8fafc; flex-shrink: 0; }
+        .section-title { grid-column: span 3; font-size: 13px; font-weight: 700; color: var(--secondary-color); border-bottom: 2px solid #e2e8f0; padding-bottom: 2px; margin-top: 5px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group-2cols { grid-column: span 2; display: flex; flex-direction: column; gap: 4px; }
+        .form-group-full { grid-column: span 3; display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 11px; font-weight: 600; color: #475569; }
+        input, select, textarea { padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 12px; outline: none; }
+        input:focus, select:focus, textarea:focus { border-color: var(--secondary-color); }
+        input[readonly] { background-color: #e2e8f0; color: #475569; font-weight: 700; cursor: not-allowed; }
+        textarea { resize: none; min-height: 45px; height: 45px; }
+        .sig-display-box { border: 1px solid var(--border-color); background: #f8fafc; height: 55px; display: flex; justify-content: center; align-items: center; border-radius: 4px; overflow: hidden; }
+        .sig-display-box img { max-height: 50px; object-fit: contain; }
+        .image-upload-zone { border: 2px dashed var(--border-color); border-radius: 6px; padding: 8px 12px; background: #fafbfc; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+        .image-upload-zone .upload-label { cursor: pointer; color: var(--secondary-color); font-weight: 600; font-size: 12px; white-space: nowrap; }
+        .image-upload-zone input[type="file"] { display: none; }
+        .image-grid { display: flex; gap: 8px; overflow-x: auto; flex-grow: 1; padding: 2px; }
+        .image-item { position: relative; width: 45px; height: 45px; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; background: #fff; flex-shrink: 0; }
+        .image-item img { width: 100%; height: 100%; object-fit: cover; }
+        .image-item .remove-btn { position: absolute; top: 0px; right: 0px; width: 16px; height: 16px; background: rgba(220, 38, 38, 0.9); color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 11px; line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
+        .image-count-info { font-size: 11px; color: #64748b; white-space: nowrap; }
+        .image-preview-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center; z-index: 3000; }
+        .image-preview-modal img { max-width: 90%; max-height: 90%; border-radius: 8px; }
+        .sig-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        .sig-modal-box { background: white; padding: 20px; border-radius: 8px; width: 600px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); }
+        .canvas-container { border: 2px dashed #94a3b8; background: #fdfdfd; margin: 15px 0; border-radius: 4px; touch-action: none; }
+        #customer-canvas { width: 100%; height: 200px; cursor: crosshair; display: block; background: white; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 14px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 5000; opacity: 0; transform: translateY(20px); transition: all 0.3s ease; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: var(--success-color); }
+        .toast.error { background: var(--danger-color); }
+        .toast.warning { background: var(--warning-color); }
+
+        /* PDF Preview */
+        .pdf-preview-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.85); display: none; justify-content: center; align-items: center; z-index: 4000; padding: 20px; }
+        .pdf-preview-box { background-color: #1e293b; width: 95%; max-width: 980px; height: 96vh; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .pdf-preview-header { background-color: #0f172a; color: white; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px solid #334155; }
+        .pdf-preview-body { flex-grow: 1; overflow-y: auto !important; padding: 30px 20px; display: flex; flex-direction: column; align-items: center; gap: 30px; background-color: #475569; scroll-behavior: smooth; }
+        .pdf-preview-body .pdf-page { max-width: 100%; width: 210mm; height: 296.8mm !important; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); margin-bottom: 15px; display: block !important; background: white !important; flex-shrink: 0; }
+        .pdf-preview-footer { background-color: #0f172a; padding: 14px 24px; display: flex; justify-content: flex-end; gap: 15px; flex-shrink: 0; border-top: 1px solid #334155; }
+        #print-template { display: none; }
+        .pdf-page { width: 210mm; height: 296.8mm; padding: 20mm 15mm; background: white !important; color: #000 !important; box-sizing: border-box; position: relative; overflow: hidden; page-break-after: always; page-break-inside: avoid; }
+        .pdf-header { display: flex; justify-content: space-between; border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-bottom: 15px; align-items: center; }
+        .pdf-company-info-block { display: flex; align-items: center; gap: 15px; }
+        .pdf-company-logo { max-height: 45px; max-width: 120px; object-fit: contain; }
+        .pdf-company-text { font-size: 11px; color: #334155; line-height: 1.4; }
+        .pdf-company-name-title { font-size: 14px; font-weight: bold; color: #0f172a; }
+        .pdf-title { font-size: 18px; font-weight: bold; color: #0f172a; text-align: right; }
+        .pdf-job-id { font-size: 14px; font-weight: bold; color: #0284c7; text-align: right; margin-top: 2px; }
+        .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+        .pdf-table th, .pdf-table td { border: 1px solid #cbd5e1; padding: 8px 10px; font-size: 12px; vertical-align: top; color: #000; }
+        .pdf-table th { background-color: #f1f5f9 !important; text-align: left; font-weight: bold; width: 25%; }
+        .pdf-section-title { font-size: 13px; font-weight: bold; color: #0284c7; background-color: #e2e8f0 !important; padding: 6px; margin: 12px 0 8px 0; border-left: 4px solid #0284c7; }
+        .pdf-signature-block { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px; text-align: center; }
+        .pdf-sig-box { border-bottom: 1px dashed #475569; height: 75px; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 5px; }
+        .pdf-sig-box img { max-height: 65px; object-fit: contain; }
+        .pdf-grid { display: grid; gap: 15px; width: 100%; height: 230mm; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); align-content: start; }
+        .pdf-grid-3cols { display: grid; gap: 15px; width: 100%; height: 230mm; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr); align-content: start; }
+        .pdf-image-container { border: 1px solid #cbd5e1; padding: 6px; background: #fff !important; display: flex; justify-content: center; align-items: center; overflow: hidden; border-radius: 4px; height: 100%; max-height: 70mm; }
+        .pdf-image-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .logo-setup-wrapper { display: flex; align-items: center; gap: 15px; background: #f8fafc; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; }
+        .company-logo-preview { max-height: 50px; max-width: 100px; object-fit: contain; border: 1px dashed var(--border-color); background: white; }
+        .gas-status { font-size:12px; padding:8px 12px; border-radius:6px; margin-top:10px; display:flex; align-items:center; gap:10px; background:#f1f5f9; }
+        .status-connected { color:#15803d; font-weight:600; }
+        .status-disconnected { color:#b91c1c; font-weight:600; }
+        hr { margin: 8px 0; border-color: #e2e8f0; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1> Medical Equipment Service</h1>
+    <div class="header-right-zone">
+        <button class="btn" id="btn-add-job">+ เปิด Job งานซ่อมใหม่</button>
+        <button class="menu-hamburger-btn" id="btn-open-sidebar" title="เมนูการใช้งาน">☰</button>
+    </div>
+</header>
+
+<div class="action-bar">
+    <div class="search-wrapper">🔍 <input type="text" id="search-input" placeholder="พิมพ์เพื่อค้นหา..."></div>
+    <div class="table-info-bar" id="table-status-info">แสดงเฉพาะงานที่กำลังดำเนินการ</div>
+</div>
+
+<main class="table-container">
+    <table>
+        <thead><tr><th style="width:140px;">เลขที่ใบงาน</th><th style="width:110px;">วันที่เปิดงาน</th><th>ชื่อลูกค้า</th><th>ชื่อเครื่อง</th><th>ยี่ห้อ</th><th>รุ่น</th><th style="max-width:180px;">อาการเสีย</th><th style="width:60px; text-align:center;">รูป</th><th style="width:200px; text-align:center;">จัดการ</th></tr></thead>
+        <tbody id="job-table-body"></tbody>
+    </table>
+</main>
+
+<!-- SIDEBAR -->
+<div class="sidebar-overlay" id="sidebar-overlay-bg"></div>
+<nav class="sidebar-menu" id="sidebar-panel">
+    <div class="sidebar-header"><h3 style="font-size:16px; color:#fff;">เมนูระบบจัดการ</h3><button class="sidebar-close-btn" id="btn-close-sidebar">×</button></div>
+    <div class="sidebar-links-zone">
+        <div class="sidebar-section-title">หน้าหลัก / งานซ่อม</div>
+        <a class="sidebar-item active" id="menu-dashboard-link">📄 รายการ Job งานซ่อมทั้งหมด</a>
+        <div class="sidebar-section-title">เพิ่มหน้าเว็บภายนอก</div>
+        <a class="sidebar-item" href="https://www.google.com" target="_blank">🌐 ค้นหาข้อมูล Google</a>
+        <a class="sidebar-item" href="https://drive.google.com" target="_blank">📂 คลังไฟล์ Google Drive</a>
+        <div class="sidebar-section-title">ตั้งค่าระบบ</div>
+        <div class="sidebar-item" id="menu-setting-link">⚙️ ตั้งค่าข้อมูลบริษัท & จัดการช่าง</div>
+    </div>
+    <div class="sidebar-footer"><button class="btn-logout" id="btn-system-logout">🚪 ออกจากระบบ</button></div>
+</nav>
+
+<!-- SETTING MODAL (ปรับเป็นแนวตั้งทั้งหมด) -->
+<div class="modal-overlay" id="company-setting-modal">
+    <div class="modal-box" style="width:800px;">
+        <div class="modal-header"><span>⚙️ แผงควบคุมตั้งค่าระบบ</span></div>
+        <form id="company-setting-form">
+            <!-- modal-body เปลี่ยนเป็น flex column เพื่อให้ทุกฟิลด์เรียงลงข้างล่าง ไม่ใช่ด้านข้าง -->
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 20px; max-height: 75vh; overflow-y: auto; padding: 20px;">
+                
+                <!-- GAS Integration Section -->
+                <div class="section-title" style="grid-column: unset;">🔌 Google Sheets Integration (GAS)</div>
+
+                <!-- URL Input + Test -->
+                <div class="form-group">
+                    <label>Web App URL (Google Apps Script)</label>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1; min-width:200px;">
+                        <input type="text" id="gas-url-label" placeholder="ชื่อ/หมายเหตุ URL" style="width:160px;">
+                        <button type="button" class="btn btn-success btn-sm" id="btn-save-gas-url">💾 บันทึก URL</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-test-gas">🔌 ทดสอบ</button>
+                    </div>
+                    <div id="gas-status-area" class="gas-status">⚠️ ยังไม่ได้ตั้งค่า URL</div>
+                </div>
+
+                <!-- Sheet Actions -->
+                <div class="form-group">
+                    <label>ดำเนินการกับชีต</label>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-sm" id="btn-create-sheets">📄 สร้าง/ตรวจสอบชีต</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-sync-now">🔄 ซิงค์ข้อมูลจาก GAS</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="btn-load-urls">📋 โหลด URL จากชีต</button>
+                    </div>
+                    <small style="color:#64748b;">* สร้างชีต Jobs, Config, Techs, URLs อัตโนมัติ และป้องกันคอลัมน์ซ้ำ</small>
+                </div>
+
+                <!-- Saved URLs Table -->
+                <div class="form-group">
+                    <label>📌 URL ที่บันทึกไว้ในชีต (คลิกแถวเพื่อใช้งาน)</label>
+                    <div style="border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:white;">
+                        <table style="width:100%; font-size:12px; border-collapse:collapse;">
+                            <thead><tr style="background:#e2e8f0;">
+                                <th style="padding:7px 10px; text-align:left;">ชื่อ/หมายเหตุ</th>
+                                <th style="padding:7px 10px; text-align:left;">URL</th>
+                                <th style="padding:7px 10px; width:80px; text-align:center;">บันทึกเมื่อ</th>
+                                <th style="padding:7px 10px; width:50px;"></th>
+                            </tr></thead>
+                            <tbody id="url-table-body">
+                                <tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:12px;">กด "โหลด URL จากชีต" เพื่อแสดงรายการ</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <hr>
+
+                <!-- ส่วนข้อมูลบริษัท -->
+                <div class="section-title" style="grid-column: unset;">🏢 ส่วนที่ 1: ข้อมูลหัวกระดาษรายงาน</div>
+                <div class="form-group">
+                    <label>ชื่อบริษัท / ร้านค้า</label>
+                    <input type="text" id="cfg-comp-name" placeholder="เช่น บริษัท เมดิคอล ซ่อมบำรุง จำกัด">
+                </div>
+                <div class="form-group">
+                    <label>ที่อยู่ / ข้อมูลติดต่อ</label>
+                    <textarea id="cfg-comp-address" placeholder="ที่อยู่..." style="height:50px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>รูปภาพโลโก้บริษัท</label>
+                    <div class="logo-setup-wrapper">
+                        <input type="file" id="cfg-comp-logo-file" accept="image/*">
+                        <img id="cfg-logo-preview-img" class="company-logo-preview" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='50'><rect width='100' height='50' fill='%23e2e8f0'/><text x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%2364748b'>No Logo</text></svg>">
+                    </div>
+                </div>
+
+                <!-- ส่วนจัดการช่าง -->
+                <div class="section-title" style="grid-column: unset;">👨‍💻 ส่วนที่ 2: จัดการรายชื่อช่างและอัปโหลดลายเซ็น</div>
+                <div style="background:#f8fafc; padding:12px; border:1px solid var(--border-color); border-radius:6px;">
+                    <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:12px;">
+                        <div class="form-group" style="flex-grow:1;">
+                            <label>ชื่อ-นามสกุลช่าง</label>
+                            <input type="text" id="cfg-tech-name-input" placeholder="เช่น ช่างต้น สมบูรณ์">
+                        </div>
+                        <div class="form-group" style="width:180px;">
+                            <label>ภาพไฟล์ลายเซ็นช่าง</label>
+                            <input type="file" id="cfg-tech-sig-input" accept="image/*">
+                        </div>
+                        <button type="button" class="btn" id="btn-add-tech-to-list" style="padding:6px 12px;">➕ เพิ่มช่าง</button>
+                    </div>
+                    <table style="width:100%; font-size:12px; border:1px solid var(--border-color); border-collapse:collapse; background:white;">
+                        <thead><tr style="background:#cbd5e1;"><th>ชื่อช่างปฏิบัติงาน</th><th style="width:120px;">ลายเซ็นพรีวิว</th><th style="width:60px;">จัดการ</th> </tr></thead>
+                        <tbody id="cfg-tech-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-close-setting">ปิดหน้าต่าง</button>
+                <button type="submit" class="btn btn-success">💾 บันทึกข้อมูลบริษัท</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- JOB MODAL (ไม่มี Quotation / Parts) -->
+<div class="modal-overlay" id="job-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span id="modal-title">เปิด Job งานซ่อมใหม่</span>
+            <button type="button" class="btn btn-success btn-sm" id="btn-modal-print" style="display:none;">👁️ ดูตัวอย่างเอกสารก่อนพิมพ์</button>
+        </div>
+        <form id="job-form">
+            <div class="modal-body">
+                <div class="section-title">1. ข้อมูลการเปิดงาน & ลูกค้า</div>
+                <div class="form-group"><label>เลขที่ใบงาน</label><input type="text" id="job-id" readonly></div>
+                <div class="form-group"><label>วันที่เปิดงาน *</label><input type="date" id="date-open" required></div>
+                <div class="form-group"><label>ชื่อลูกค้า / หน่วยงาน *</label><input type="text" id="customer-name" placeholder="ระบุชื่อลูกค้าหรือโรงพยาบาล" required></div>
+
+                <div class="section-title">2. รายละเอียดเครื่องมือแพทย์</div>
+                <div class="form-group"><label>ชื่อเครื่องมือแพทย์ *</label><input type="text" id="device-name" placeholder="เช่น เครื่องช่วยหายใจ" required></div>
+                <div class="form-group"><label>ยี่ห้อ *</label><input type="text" id="device-brand" placeholder="เช่น Puritan Bennett" required></div>
+                <div class="form-group"><label>รุ่น *</label><input type="text" id="device-model" placeholder="เช่น 840" required></div>
+                <div class="form-group"><label>Serial Number (S/N) *</label><input type="text" id="serial-number" placeholder="ระบุเลขซีเรียลเครื่อง" required></div>
+                <div class="form-group"><label>Code เครื่อง (ถ้ามี)</label><input type="text" id="device-code" placeholder="รหัสเครื่องภายในโรงพยาบาล"></div>
+                <div class="form-group"><label>อุปกรณ์ที่มาด้วย</label><input type="text" id="accessories" placeholder="เช่น สายไฟ AC, สายท่อลม"></div>
+                <div class="form-group-full"><label>อาการที่แจ้งเสีย *</label><textarea id="symptom" placeholder="ระบุอาการเสียที่ได้รับแจ้งอย่างละเอียด" required></textarea></div>
+
+                <div class="section-title">3. บันทึกทางเทคนิคและการปิดงาน</div>
+                <div class="form-group-2cols"><label>ผลการตรวจเช็ค</label><textarea id="check-result" placeholder="ระบุผลตรวจเช็คระบบกายภาพ/ระบบไฟ"></textarea></div>
+                <div class="form-group"><label>การรับประกัน (หลังซ่อม)</label><input type="text" id="warranty" placeholder="เช่น รับประกัน 3 เดือน"></div>
+                <div class="form-group-2cols"><label>ผลการซ่อม / วิธีการแก้ไข</label><textarea id="solution" placeholder="ระบุวิธีแก้ไขและรายละเอียดอะไหล่ที่เปลี่ยน"></textarea></div>
+                <div class="form-group"><label>วันที่ปิดงาน</label><input type="date" id="date-close"></div>
+
+                <div class="section-title">4. เจ้าหน้าที่, รูปภาพ และลายเซ็น</div>
+                <div class="form-group"><label>ชื่อช่างผู้ซ่อม *</label><select id="tech-name" required></select></div>
+                <div class="form-group"><label>ลายเซ็นช่าง (ดึงอัตโนมัติตามชื่อ)</label><div class="sig-display-box" id="tech-sig-box"><span style="color:#94a3b8; font-size:11px;">กรุณาเลือกชื่อช่าง</span></div></div>
+                <div class="form-group"><label>ลายเซ็นลูกค้า *</label><div style="display:flex; flex-direction:column; gap:4px;"><button type="button" class="btn btn-secondary btn-sm" id="btn-trigger-customer-sig">✍️ เซ็นชื่อลูกค้า</button><div class="sig-display-box" id="customer-sig-box"><span style="color:#94a3b8; font-size:11px;">ยังไม่มีการเซ็นชื่อ</span></div></div></div>
+                <div class="form-group-full"><div class="image-upload-zone" id="image-upload-zone"><label class="upload-label" for="job-images">📁 คลิกเลือกรูปภาพ (หลายรูป)</label><input type="file" id="job-images" accept="image/*" multiple><div class="image-grid" id="image-grid"></div><div class="image-count-info" id="image-count-info">ยังไม่ได้อัปโหลดรูปภาพ</div></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-close-modal">ยกเลิก</button>
+                <button type="submit" class="btn">บันทึกข้อมูล Job</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- PDF PREVIEW MODAL -->
+<div class="pdf-preview-overlay" id="pdf-preview-modal">
+    <div class="pdf-preview-box">
+        <div class="pdf-preview-header"><h3 style="font-size:16px;">👁️ ตรวจสอบตัวอย่างหน้าเอกสาร Service Report</h3><span id="preview-page-counter"></span></div>
+        <div class="pdf-preview-body" id="pdf-preview-render-zone"></div>
+        <div class="pdf-preview-footer"><button type="button" class="btn btn-secondary" id="btn-close-preview">ย้อนกลับ</button><button type="button" class="btn btn-success" id="btn-confirm-download-pdf">📥 ดาวน์โหลด PDF</button></div>
+    </div>
+</div>
+
+<!-- SIGNATURE MODAL -->
+<div class="sig-modal-overlay" id="sig-popup">
+    <div class="sig-modal-box"><h3>✍️ ลายเซ็นรับรองผลการซ่อม (ลูกค้า)</h3><div class="canvas-container"><canvas id="customer-canvas"></canvas></div><div style="display:flex; justify-content:space-between;"><button type="button" class="btn btn-danger" id="btn-clear-canvas">ล้างหน้าจอ</button><div><button type="button" class="btn btn-secondary" id="btn-close-sig-popup">ยกเลิก</button><button type="button" class="btn btn-success" id="btn-save-customer-sig">ยืนยัน</button></div></div></div>
+</div>
+
+<!-- IMAGE PREVIEW MODAL -->
+<div class="image-preview-modal" id="image-preview-modal"><img id="preview-large-image" src="" alt="Preview"></div>
+
+<div id="print-template"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+    // ==================== GAS INTEGRATION ====================
+    let SHEET_API_URL = localStorage.getItem('gas_webapp_url') || '';
+
+    // ── DOM Elements (declared early so all functions can use them) ──
+    // จะถูก assign หลัง DOMContentLoaded แต่ declare ไว้ก่อนเพื่อให้ scope เห็น
+    let jobModal, btnAddJob, btnCloseModal, btnModalPrint, jobForm, jobTableBody,
+        modalTitle, jobImagesInput, imageGrid, imageCountInfo, techSelect, techSigBox,
+        customerSigBox, searchInput, pdfPreviewModal, pdfPreviewRenderZone,
+        btnClosePreview, btnConfirmDownloadPdf, previewPageCounter, sigPopup,
+        btnTriggerCustomerSig, btnCloseSigPopup, btnClearCanvas, btnSaveCustomerSig,
+        imagePreviewModal, previewLargeImage, btnOpenSidebar, btnCloseSidebar,
+        sidebarPanel, sidebarOverlayBg, menuDashboardLink, menuSettingLink,
+        btnSystemLogout, companySettingModal, companySettingForm, btnCloseSetting,
+        cfgCompName, cfgCompAddress, cfgCompLogoFile, cfgLogoPreviewImg;
+
+    function updateGasStatusUI(connected = false, message = '') {
+        const area = document.getElementById('gas-status-area');
+        if (!area) return;
+        if (connected) {
+            area.innerHTML = `<span class="status-connected">✅ เชื่อมต่อแล้ว: ${SHEET_API_URL.substring(0, 50)}...</span>`;
+            area.style.background = '#e6f7e6';
+        } else {
+            area.innerHTML = `<span class="status-disconnected">⚠️ ${message || 'ยังไม่ได้ตั้งค่า URL หรือเชื่อมต่อไม่ได้'}</span>`;
+            area.style.background = '#ffe6e6';
+        }
+    }
+
+    async function testGasConnection() {
+        if (!SHEET_API_URL) {
+            updateGasStatusUI(false, 'ไม่พบ URL กรุณาบันทึก URL ก่อน');
+            return false;
+        }
+        try {
+            const res = await fetch(SHEET_API_URL + '?action=getConfig', { method: 'GET' });
+            const data = await res.json();
+            if (data && data.ok === true) {
+                updateGasStatusUI(true, 'เชื่อมต่อสำเร็จ');
+                return true;
+            } else {
+                updateGasStatusUI(false, 'ตอบกลับจาก GAS ไม่ถูกต้อง');
+                return false;
+            }
+        } catch(e) {
+            updateGasStatusUI(false, 'Connection error: ' + e.message);
+            return false;
+        }
+    }
+
+    async function gasPost(params) {
+        if (!SHEET_API_URL) return { ok: false, error: 'GAS_NOT_CONFIGURED' };
+        try {
+            const body = new URLSearchParams(params);
+            const res = await fetch(SHEET_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+            return await res.json();
+        } catch(e) {
+            return { ok: false, error: e.message };
+        }
+    }
+
+    // ── URL Sheet Global Functions (เรียกได้จากทุก scope) ──
+    async function loadUrlsFromSheet() {
+        if (!SHEET_API_URL) { showToast('กรุณาตั้งค่า GAS URL ก่อน', 'warning'); return; }
+        showLoading('กำลังโหลด URL จากชีต...');
+        try {
+            const res = await gasPost({ action: 'getUrls' });
+            if (res.ok && Array.isArray(res.data)) {
+                renderUrlTable(res.data);
+                showToast('โหลด ' + res.data.length + ' URL เรียบร้อย', 'success');
+            } else {
+                showToast('ไม่สามารถโหลด URL ได้', 'error');
+            }
+        } catch(e) {
+            showToast('Connection error: ' + e.message, 'error');
+        } finally { hideLoading(); }
+    }
+
+    function renderUrlTable(urls) {
+        const tbody = document.getElementById('url-table-body');
+        if (!tbody) return;
+        if (!urls || urls.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:12px;">ยังไม่มี URL บันทึกไว้</td></tr>';
+            return;
+        }
+        tbody.innerHTML = '';
+        urls.forEach(function(item) {
+            const isActive = item.url === SHEET_API_URL;
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.style.background = isActive ? '#eff6ff' : '';
+            tr.innerHTML =
+                '<td style="padding:7px 10px; font-weight:' + (isActive ? '700' : '400') + '; color:' + (isActive ? '#1d4ed8' : 'inherit') + ';">' +
+                    (isActive ? '✅ ' : '') + (item.label || '-') +
+                '</td>' +
+                '<td style="padding:7px 10px; font-size:11px; color:#475569; max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" title="' + item.url + '">' + item.url + '</td>' +
+                '<td style="padding:7px 10px; font-size:11px; color:#94a3b8; text-align:center;">' + (item.savedAt || '-') + '</td>' +
+                '<td style="padding:4px; text-align:center;"><button class="btn btn-danger btn-sm" type="button" onclick="deleteUrlFromSheet(\'' + item.url.replace(/'/g, "\\'") + '\')">ลบ</button></td>';
+            tr.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') return;
+                document.getElementById('gas-url-input').value = item.url;
+                document.getElementById('gas-url-label').value = item.label || '';
+                localStorage.setItem('gas_webapp_url', item.url);
+                localStorage.setItem('gas_webapp_label', item.label || '');
+                SHEET_API_URL = item.url;
+                testGasConnection();
+                loadUrlsFromSheet();
+                showToast('เปลี่ยนไปใช้: ' + (item.label || item.url), 'success');
+            });
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function deleteUrlFromSheet(url) {
+        if (!confirm('ลบ URL นี้ออกจากชีต?')) return;
+        try {
+            const res = await gasPost({ action: 'deleteUrl', url: url });
+            if (res.ok) {
+                showToast('ลบ URL เรียบร้อย', 'error');
+                await loadUrlsFromSheet();
+            } else {
+                showToast('ลบไม่ได้: ' + (res.error || ''), 'error');
+            }
+        } catch(e) { showToast('Connection error', 'error'); }
+    }
+
+    async function ensureSheetsRemote() {
+        if (!SHEET_API_URL) { showToast('กรุณาตั้งค่า GAS URL ก่อน', 'warning'); return false; }
+        showLoading('กำลังสร้าง/ตรวจสอบชีต...');
+        try {
+            // ขั้น 1: สร้างชีตทั้งหมด
+            const res = await gasPost({ action: 'ensureSheets' });
+            if (!res || !res.ok) {
+                showToast('เกิดข้อผิดพลาด: ' + (res && res.error || 'ไม่ทราบสาเหตุ'), 'error');
+                return false;
+            }
+
+            // ขั้น 2: บันทึก URL ลงชีต URLs ทันที (ชีตมีแน่นอนแล้ว)
+            const label  = localStorage.getItem('gas_webapp_label') || 'Web App URL';
+            const urlRes = await gasPost({ action: 'saveUrl', url: SHEET_API_URL, label: label });
+            if (urlRes && urlRes.ok) {
+                updateGasStatusUI(true);
+                showToast('✅ สร้างชีตเรียบร้อย และบันทึก URL ลงชีตแล้ว', 'success');
+                await loadUrlsFromSheet(); // โหลดตารางให้เห็นทันที
+            } else {
+                showToast('สร้างชีตแล้ว แต่บันทึก URL ไม่สำเร็จ: ' + (urlRes && urlRes.error || ''), 'warning');
+            }
+            return true;
+        } catch(e) {
+            showToast('ไม่สามารถติดต่อ GAS ได้: ' + e.message, 'error');
+            return false;
+        } finally { hideLoading(); }
+    }
+
+    async function syncJobsFromGAS() {
+        if (!SHEET_API_URL) { showToast('กรุณาตั้งค่า GAS URL ก่อน', 'warning'); return; }
+        showLoading('กำลังดึงข้อมูลจาก Google Sheets...');
+        try {
+            const res = await gasPost({ action: 'getJobs' });
+            if (res.ok && Array.isArray(res.data)) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(res.data));
+                renderTable();
+                showToast(`โหลดข้อมูลสำเร็จ ${res.data.length} รายการ`, 'success');
+            } else {
+                showToast('ไม่สามารถดึงข้อมูลได้', 'error');
+            }
+        } catch(e) {
+            showToast('Connection error', 'error');
+        } finally { hideLoading(); }
+    }
+
+    // ==================== LOCAL STORAGE ====================
+    const STORAGE_KEY = 'medical_tracker_v4_db';
+    const CONFIG_KEY = 'medical_tracker_company_cfg';
+    const TECH_STORAGE_KEY = 'medical_tracker_technicians_db';
+    const defaultTechs = [
+        { name: "ช่างสมชาย ยอดบริการ", sig: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='50'><text x='10' y='35' style='font: italic bold 24px Brush Script MT, cursive; fill: %231e3a8a;'>Somch_Y</text></svg>" },
+        { name: "ช่างวิชาญ นวัตกรรม", sig: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='50'><text x='10' y='35' style='font: italic bold 24px Brush Script MT, cursive; fill: %231e3a8a;'>Wichan.N</text></svg>" }
+    ];
+
+    function getAllJobs() { try { const d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : []; } catch(e) { return []; } }
+    function saveAllJobs(jobs) { localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs)); }
+    function deleteJob(id) { let j = getAllJobs().filter(x => x.id !== id); saveAllJobs(j); return j; }
+    async function saveJobToSheet(jobData) { try { const res = await gasPost({ action:'saveJob', job: JSON.stringify(jobData) }); return res.ok; } catch(e) { return false; } }
+
+    function generateNextJobId() {
+        const jobs = getAllJobs();
+        const currentYear = new Date().getFullYear();
+        const prefix = `JOB-${currentYear}-`;
+        if (!jobs || jobs.length === 0) return prefix + "0001";
+        const currentYearJobs = jobs.filter(j => j.id && j.id.startsWith(prefix));
+        if (currentYearJobs.length === 0) return prefix + "0001";
+        let maxNumber = 0;
+        currentYearJobs.forEach(j => {
+            const parts = j.id.split('-');
+            if (parts.length === 3) {
+                const num = parseInt(parts[2], 10);
+                if (!isNaN(num) && num > maxNumber) maxNumber = num;
+            }
+        });
+        return prefix + (maxNumber + 1).toString().padStart(4, '0');
+    }
+
+    // ==================== COMPANY CONFIG ====================
+    let companyConfig = { name: "", address: "", logo: "" };
+    function loadCompanyConfig() {
+        try {
+            const data = localStorage.getItem(CONFIG_KEY);
+            if (data) {
+                companyConfig = JSON.parse(data);
+                if (cfgCompName)      cfgCompName.value    = companyConfig.name    || "";
+                if (cfgCompAddress)   cfgCompAddress.value = companyConfig.address || "";
+                if (companyConfig.logo && cfgLogoPreviewImg) cfgLogoPreviewImg.src = companyConfig.logo;
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    // ==================== TECHNICIANS ====================
+    function getSystemTechnicians() {
+        try {
+            const data = localStorage.getItem(TECH_STORAGE_KEY);
+            return data ? JSON.parse(data) : defaultTechs;
+        } catch(e) { return defaultTechs; }
+    }
+    function saveSystemTechnicians(techList) {
+        localStorage.setItem(TECH_STORAGE_KEY, JSON.stringify(techList));
+        initTechnicianSelect();
+    }
+    function initTechnicianSelect() {
+        if (!techSelect) return;
+        const techs = getSystemTechnicians();
+        techSelect.innerHTML = '<option value="">กรุณาเลือกชื่อช่าง</option>';
+        techs.forEach(tech => {
+            const opt = document.createElement('option');
+            opt.value = tech.name;
+            opt.innerText = tech.name;
+            techSelect.appendChild(opt);
+        });
+    }
+    function renderSettingTechTable() {
+        const tbody = document.getElementById('cfg-tech-table-body');
+        const techs = getSystemTechnicians();
+        tbody.innerHTML = '';
+        if(techs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:10px;">ไม่มีรายชื่อช่างในระบบ</td></tr>`;
+            return;
+        }
+        techs.forEach((tech, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding:8px; border:1px solid var(--border-color);">${tech.name}</td>
+                <td style="padding:4px; border:1px solid var(--border-color); text-align:center;"><img src="${tech.sig}" style="max-height:28px;"></td>
+                <td style="padding:4px; border:1px solid var(--border-color); text-align:center;"><button type="button" class="btn btn-danger btn-sm" onclick="window.deleteTechFromSetting(${index})">ลบ</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    window.deleteTechFromSetting = function(index) {
+        if(confirm('ลบช่างคนนี้?')) {
+            const techs = getSystemTechnicians();
+            techs.splice(index, 1);
+            saveSystemTechnicians(techs);
+            renderSettingTechTable();
+            showToast('ลบข้อมูลช่างเรียบร้อย', 'error');
+        }
+    };
+
+    // ==================== IMAGES & SIGNATURE ====================
+    let tempImages = [];
+    let tempCustomerSigData = "";
+    let isDrawing = false;
+    let customerCanvas, ctxCustomer;  // ← assign ใน DOMContentLoaded
+
+    function renderImageGrid() {
+        imageGrid.innerHTML = '';
+        if (tempImages.length === 0) {
+            imageCountInfo.textContent = 'ยังไม่ได้อัปโหลดรูปภาพ';
+            return;
+        }
+        tempImages.forEach((imgData, index) => {
+            const item = document.createElement('div');
+            item.className = 'image-item';
+            item.innerHTML = `<img src="${imgData}" onclick="window.openImagePreview('${imgData.replace(/'/g, "\\'")}')"><button class="remove-btn" type="button" onclick="window.removeImage(${index})">×</button>`;
+            imageGrid.appendChild(item);
+        });
+        imageCountInfo.innerHTML = `📸 ${tempImages.length} รูป`;
+    }
+    window.removeImage = function(index) { tempImages.splice(index, 1); renderImageGrid(); };
+    window.openImagePreview = function(src) { previewLargeImage.src = src; imagePreviewModal.style.display = 'flex'; };
+
+    function compressImage(base64, maxWidth=800, maxHeight=800, quality=0.75) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                let w = img.width, h = img.height;
+                if (w > maxWidth || h > maxHeight) {
+                    const ratio = Math.min(maxWidth / w, maxHeight / h);
+                    w = Math.round(w * ratio);
+                    h = Math.round(h * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.src = base64;
+        });
+    }
+
+    // ==================== PDF BUILD ====================
+    function buildHTMLContent(job) {
+        const currentConfig = {
+            name: companyConfig.name || "ศูนย์บริการซ่อมบำรุงเครื่องมือแพทย์",
+            address: companyConfig.address || "รายละเอียดที่อยู่และข้อมูลติดต่อ สามารถแก้ไขได้ที่เมนูตั้งค่าขวามือ",
+            logo: companyConfig.logo || ""
+        };
+        let logoHTML = currentConfig.logo ? `<img src="${currentConfig.logo}" class="pdf-company-logo">` : `<div style="width:45px; height:45px; background:#e2e8f0; display:flex; align-items:center; justify-content:center; border-radius:4px;"><span style="font-size:8px; color:#64748b;">No Logo</span></div>`;
+        let htmlContent = `
+            <div class="pdf-page">
+                <div class="pdf-header">
+                    <div class="pdf-company-info-block">${logoHTML}<div class="pdf-company-text"><div class="pdf-company-name-title">${currentConfig.name}</div><div>${currentConfig.address}</div></div></div>
+                    <div class="pdf-job-id"><div class="pdf-title">ใบรายงานซ่อมเครื่องมือแพทย์</div><div style="margin-top:4px;">No: ${job.id}</div><div style="font-size:11px; font-weight:normal; color:#64748b;">สถานะ: ${job.status}</div></div>
+                </div>
+                <div class="pdf-section-title">1. ข้อมูลการเปิดงานและลูกค้า</div>
+                <table class="pdf-table"><tr><th>วันที่เปิด Job:</th><td>${job.dateOpen}</td><th>ชื่อลูกค้า:</th><td>${job.customerName}</td></tr></table>
+                <div class="pdf-section-title">2. รายละเอียดเครื่องมือแพทย์</div>
+                <table class="pdf-table"><tr><th>ชื่อเครื่อง:</th><td>${job.deviceName}</td><th>ยี่ห้อ/รุ่น:</th><td>${job.deviceBrand} / ${job.deviceModel}</td></tr>
+                <tr><th>S/N:</th><td>${job.serialNumber}</td><th>Code เครื่อง:</th><td>${job.deviceCode || '-'}</td></tr>
+                <tr><th>อุปกรณ์ที่มาด้วย:</th><td colspan="3">${job.accessories || '-'}</td></tr>
+                <tr><th>อาการเสีย:</th><td colspan="3" style="white-space:pre-line;">${job.symptom}</td></tr></table>
+                <div class="pdf-section-title">3. บันทึกผลการตรวจเช็คและวิธีแก้ไข</div>
+                <table class="pdf-table"><tr><th>ผลการตรวจเช็ค:</th><td colspan="3" style="white-space:pre-line;">${job.checkResult || '-'}</td></tr>
+                <tr><th>ผลการซ่อม:</th><td colspan="3" style="white-space:pre-line;">${job.solution || '-'}</td></tr>
+                <tr><th>การรับประกัน:</th><td>${job.warranty || '-'}</td><th>วันที่ปิดงาน:</th><td>${job.dateClose || '-'}</td></tr></table>
+                <div class="pdf-signature-block">
+                    <div><div class="pdf-sig-box">${job.techSig ? `<img src="${job.techSig}">` : ''}</div><div style="font-size:12px; font-weight:bold;">(${job.techName || '........................................'})</div><div style="font-size:11px;">ช่างผู้ปฏิบัติงานซ่อม</div></div>
+                    <div><div class="pdf-sig-box">${job.customerSig ? `<img src="${job.customerSig}">` : ''}</div><div style="font-size:12px; font-weight:bold;">(......................................................)</div><div style="font-size:11px;">ผู้รับมอบเครื่องมือแพทย์ / ลูกค้า</div></div>
+                </div>
+            </div>`;
+        if (job.images && job.images.length > 0) {
+            const imagesPerPage = 6;
+            const totalImages = job.images.length;
+            const totalImagePages = Math.ceil(totalImages / imagesPerPage);
+            for (let p = 0; p < totalImagePages; p++) {
+                const startIndex = p * imagesPerPage;
+                const endIndex = Math.min(startIndex + imagesPerPage, totalImages);
+                const imagesOnThisPage = endIndex - startIndex;
+                const gridClass = imagesOnThisPage <= 4 ? "pdf-grid" : "pdf-grid-3cols";
+                htmlContent += `<div class="pdf-page"><div class="pdf-header"><div class="pdf-company-info-block">${logoHTML}<div class="pdf-company-text"><div class="pdf-company-name-title">${currentConfig.name}</div></div></div><div class="pdf-job-id"><div class="pdf-title">📂 รูปภาพแนบท้ายรายงาน (หน้า ${p+1}/${totalImagePages})</div><div>Job ID: ${job.id}</div></div></div><div class="${gridClass}">`;
+                for (let i = startIndex; i < endIndex; i++) {
+                    if (job.images[i]) htmlContent += `<div class="pdf-image-container"><img src="${job.images[i]}"></div>`;
+                }
+                htmlContent += `</div></div>`;
+            }
+        }
+        return htmlContent;
+    }
+
+    let activeJobIdForPDF = "";
+    window.triggerPDFPreview = function(jobId) {
+        const job = getAllJobs().find(x => x.id === jobId);
+        if (!job) { alert('ไม่พบข้อมูล Job: ' + jobId); return; }
+
+        // parse images ถ้าเป็น string (กรณีซิงค์จาก GAS)
+        if (typeof job.images === 'string') {
+            try { job.images = JSON.parse(job.images); } catch(e) { job.images = []; }
+        }
+        if (!Array.isArray(job.images)) job.images = [];
+
+        activeJobIdForPDF = jobId;
+
+        const zone = document.getElementById('pdf-preview-render-zone');
+        const counter = document.getElementById('preview-page-counter');
+        const modal = document.getElementById('pdf-preview-modal');
+
+        zone.innerHTML = buildHTMLContent(job);
+
+        const totalPages = 1 + Math.ceil((job.images.length || 0) / 6);
+        counter.textContent = `📄 ทั้งหมด ${totalPages} หน้า`;
+        modal.style.display = 'flex';
+    };
+
+    // ==================== RENDER TABLE ====================
+    function renderTable() {
+        if (!jobTableBody || !searchInput) return;
+        const jobs = getAllJobs();
+        const keyword = searchInput.value.trim().toLowerCase();
+        let filteredJobs = keyword ? jobs.filter(j => j.id.toLowerCase().includes(keyword) || j.customerName.toLowerCase().includes(keyword) || j.deviceName.toLowerCase().includes(keyword)) : jobs.filter(j => j.status !== 'ปิดงาน');
+        filteredJobs.sort((a,b) => new Date(b.dateOpen) - new Date(a.dateOpen));
+        jobTableBody.innerHTML = '';
+        if (filteredJobs.length === 0) {
+            jobTableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#64748b; padding:30px;">ไม่พบข้อมูลใบงานซ่อม</td></tr>`;
+            return;
+        }
+        filteredJobs.forEach(job => {
+            const badge = job.status === 'ปิดงาน' ? '<span class="badge badge-completed">ปิดงาน</span>' : '<span class="badge badge-progress">รอดำเนินการ</span>';
+            const imgCount = job.images?.length || 0;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${job.id}</strong>${badge}</td>
+                <td>${job.dateOpen}</td>
+                <td><strong>${job.customerName}</strong></td>
+                <td>${job.deviceName}</td>
+                <td>${job.deviceBrand}</td>
+                <td>${job.deviceModel}</td>
+                <td style="max-width:180px; white-space:nowrap; overflow:hidden;">${job.symptom}</td>
+                <td style="text-align:center;">${imgCount ? `📷 ${imgCount}` : '-'}</td>
+                <td style="text-align:center;"><button class="btn btn-sm" onclick="window.editJobTrigger('${job.id}')">แก้ไข/ดู</button> <button class="btn btn-sm btn-success" onclick="window.triggerPDFPreview('${job.id}')">พิมพ์</button> <button class="btn btn-sm btn-danger" onclick="window.deleteJobTrigger('${job.id}')">ลบ</button></td>
+            `;
+            jobTableBody.appendChild(tr);
+        });
+    }
+
+    window.editJobTrigger = function(id) {
+        const job = getAllJobs().find(x => x.id === id);
+        if (!job) return;
+        document.getElementById('job-id').value = job.id;
+        document.getElementById('date-open').value = job.dateOpen;
+        document.getElementById('customer-name').value = job.customerName;
+        document.getElementById('device-name').value = job.deviceName;
+        document.getElementById('device-brand').value = job.deviceBrand;
+        document.getElementById('device-model').value = job.deviceModel;
+        document.getElementById('serial-number').value = job.serialNumber;
+        document.getElementById('device-code').value = job.deviceCode || '';
+        document.getElementById('accessories').value = job.accessories || '';
+        document.getElementById('symptom').value = job.symptom;
+        document.getElementById('check-result').value = job.checkResult || '';
+        document.getElementById('solution').value = job.solution || '';
+        document.getElementById('warranty').value = job.warranty || '';
+        document.getElementById('date-close').value = job.dateClose || '';
+        techSelect.value = job.techName || '';
+        if(job.techSig) techSigBox.innerHTML = `<img src="${job.techSig}">`;
+        else techSigBox.innerHTML = `<span style="color:#94a3b8;">ไม่มีลายเซ็นช่าง</span>`;
+        tempCustomerSigData = job.customerSig || "";
+        customerSigBox.innerHTML = tempCustomerSigData ? `<img src="${tempCustomerSigData}">` : `<span style="color:#94a3b8;">ยังไม่มีการเซ็นชื่อ</span>`;
+        tempImages = Array.isArray(job.images) ? [...job.images] : [];
+        renderImageGrid();
+        modalTitle.innerText = `แก้ไขใบงานซ่อม [เลขที่: ${job.id}]`;
+        btnModalPrint.style.display = 'block';
+        btnModalPrint.onclick = () => window.triggerPDFPreview(job.id);
+        jobModal.style.display = 'flex';
+    };
+
+    window.deleteJobTrigger = async function(id) {
+        if(confirm(`ลบงาน ${id}?`)) {
+            // ลบใน localStorage
+            let jobs = getAllJobs().filter(x => x.id !== id);
+            saveAllJobs(jobs);
+            // ลบใน GAS (ถ้าตั้งค่าไว้)
+            if (SHEET_API_URL) {
+                try { await gasPost({ action: 'deleteJob', id: id }); } catch(e) { /* ignore */ }
+            }
+            renderTable();
+            showToast(`ลบงาน ${id} เรียบร้อย`, 'error');
+        }
+    };
+
+    // ==================== TOAST & LOADING ====================
+    function showToast(msg, type='success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = `toast ${type} show`;
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+    function showLoading(msg='กำลังโหลด...') {
+        let el = document.getElementById('gs-loading-overlay');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'gs-loading-overlay';
+            el.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;color:#fff;font-size:16px;gap:14px;';
+            el.innerHTML = '<div style="width:44px;height:44px;border:4px solid #fff3;border-top-color:#38bdf8;border-radius:50%;animation:gs-spin 0.8s linear infinite;"></div><span id="gs-loading-msg"></span>';
+            const st = document.createElement('style'); st.textContent = '@keyframes gs-spin{to{transform:rotate(360deg)}}'; document.head.appendChild(st);
+            document.body.appendChild(el);
+        }
+        el.querySelector('#gs-loading-msg').textContent = msg;
+        el.style.display = 'flex';
+    }
+    function hideLoading() { const el = document.getElementById('gs-loading-overlay'); if(el) el.style.display = 'none'; }
+
+    // ==================== DOM READY ====================
+    document.addEventListener('DOMContentLoaded', async () => {
+
+        // ── Assign DOM elements ──
+        jobModal            = document.getElementById('job-modal');
+        btnAddJob           = document.getElementById('btn-add-job');
+        btnCloseModal       = document.getElementById('btn-close-modal');
+        btnModalPrint       = document.getElementById('btn-modal-print');
+        jobForm             = document.getElementById('job-form');
+        jobTableBody        = document.getElementById('job-table-body');
+        modalTitle          = document.getElementById('modal-title');
+        jobImagesInput      = document.getElementById('job-images');
+        imageGrid           = document.getElementById('image-grid');
+        imageCountInfo      = document.getElementById('image-count-info');
+        techSelect          = document.getElementById('tech-name');
+        techSigBox          = document.getElementById('tech-sig-box');
+        customerSigBox      = document.getElementById('customer-sig-box');
+        searchInput         = document.getElementById('search-input');
+        pdfPreviewModal     = document.getElementById('pdf-preview-modal');
+        pdfPreviewRenderZone= document.getElementById('pdf-preview-render-zone');
+        btnClosePreview     = document.getElementById('btn-close-preview');
+        btnConfirmDownloadPdf= document.getElementById('btn-confirm-download-pdf');
+        previewPageCounter  = document.getElementById('preview-page-counter');
+        sigPopup            = document.getElementById('sig-popup');
+        btnTriggerCustomerSig= document.getElementById('btn-trigger-customer-sig');
+        btnCloseSigPopup    = document.getElementById('btn-close-sig-popup');
+        btnClearCanvas      = document.getElementById('btn-clear-canvas');
+        btnSaveCustomerSig  = document.getElementById('btn-save-customer-sig');
+        imagePreviewModal   = document.getElementById('image-preview-modal');
+        previewLargeImage   = document.getElementById('preview-large-image');
+        btnOpenSidebar      = document.getElementById('btn-open-sidebar');
+        btnCloseSidebar     = document.getElementById('btn-close-sidebar');
+        sidebarPanel        = document.getElementById('sidebar-panel');
+        sidebarOverlayBg    = document.getElementById('sidebar-overlay-bg');
+        menuDashboardLink   = document.getElementById('menu-dashboard-link');
+        menuSettingLink     = document.getElementById('menu-setting-link');
+        btnSystemLogout     = document.getElementById('btn-system-logout');
+        companySettingModal = document.getElementById('company-setting-modal');
+        companySettingForm  = document.getElementById('company-setting-form');
+        btnCloseSetting     = document.getElementById('btn-close-setting');
+        cfgCompName         = document.getElementById('cfg-comp-name');
+        cfgCompAddress      = document.getElementById('cfg-comp-address');
+        cfgCompLogoFile     = document.getElementById('cfg-comp-logo-file');
+        cfgLogoPreviewImg   = document.getElementById('cfg-logo-preview-img');
+        customerCanvas      = document.getElementById('customer-canvas');
+        ctxCustomer         = customerCanvas.getContext('2d');
+
+        // ── GAS URL init ──
+        const savedUrl = localStorage.getItem('gas_webapp_url');
+        if (savedUrl) {
+            SHEET_API_URL = savedUrl;
+            document.getElementById('gas-url-input').value = savedUrl;
+            await testGasConnection();
+        } else {
+            updateGasStatusUI(false, 'ยังไม่ได้ตั้งค่า URL กรุณาใส่ URL ในช่องด้านบน');
+        }
+
+        loadCompanyConfig();
+        initTechnicianSelect();
+        renderTable();
+
+        if (SHEET_API_URL) {
+            const connected = await testGasConnection();
+            if (connected) await syncJobsFromGAS();
+        }
+
+        // ── GAS UI Events ──
+        document.getElementById('btn-save-gas-url').addEventListener('click', async () => {
+            const newUrl = document.getElementById('gas-url-input').value.trim();
+            const label  = (document.getElementById('gas-url-label').value.trim()) || 'Web App URL';
+            if (!newUrl) { showToast('กรุณากรอก URL', 'warning'); return; }
+
+            // ขั้น 1: บันทึก localStorage ก่อนเสมอ (ใช้ได้แม้ชีตยังไม่มี)
+            localStorage.setItem('gas_webapp_url', newUrl);
+            localStorage.setItem('gas_webapp_label', label);
+            SHEET_API_URL = newUrl;
+            showToast('💾 บันทึก URL ลง localStorage แล้ว กำลังซิงค์ขึ้นชีต...', 'success');
+
+            // ขั้น 2: fetch ตรงไปที่ newUrl (ไม่ผ่าน gasPost เพราะ SHEET_API_URL เพิ่งเซ็ต)
+            showLoading('กำลังบันทึก URL ลง Google Sheets...');
+            try {
+                const body = new URLSearchParams({ action: 'saveUrl', url: newUrl, label: label });
+                const res  = await fetch(newUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString()
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    updateGasStatusUI(true);
+                    showToast('✅ บันทึก URL ลงชีต Google Sheets สำเร็จ', 'success');
+                    await loadUrlsFromSheet(); // โหลดตารางให้เห็นทันที
+                } else {
+                    // ชีต URLs อาจยังไม่ถูกสร้าง → แจ้งให้กดสร้างชีตก่อน
+                    updateGasStatusUI(false, data.error || 'ชีตอาจยังไม่ถูกสร้าง');
+                    showToast('⚠️ URL อยู่ใน localStorage แล้ว กด "สร้าง/ตรวจสอบชีต" เพื่อซิงค์ขึ้น Sheets', 'warning');
+                }
+            } catch(e) {
+                updateGasStatusUI(false, 'เชื่อมต่อไม่ได้: ' + e.message);
+                showToast('❌ เชื่อมต่อ GAS ไม่ได้ URL ถูกบันทึกใน localStorage แล้ว', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+        document.getElementById('btn-test-gas').addEventListener('click', testGasConnection);
+        document.getElementById('btn-create-sheets').addEventListener('click', ensureSheetsRemote);
+        document.getElementById('btn-sync-now').addEventListener('click', syncJobsFromGAS);
+        document.getElementById('btn-load-urls').addEventListener('click', loadUrlsFromSheet);
+
+        // ── Add Job ──
+        btnAddJob.addEventListener('click', () => {
+            jobForm.reset();
+            document.getElementById('job-id').value = generateNextJobId();
+            document.getElementById('date-open').value = new Date().toISOString().split('T')[0];
+            tempImages = []; renderImageGrid();
+            techSigBox.innerHTML = `<span style="color:#94a3b8;">กรุณาเลือกชื่อช่าง</span>`;
+            customerSigBox.innerHTML = `<span style="color:#94a3b8;">ยังไม่มีการเซ็นชื่อ</span>`;
+            tempCustomerSigData = "";
+            techSelect.value = "";
+            modalTitle.innerText = "เปิด Job งานซ่อมเครื่องมือแพทย์ใหม่";
+            btnModalPrint.style.display = 'none';
+            jobModal.style.display = 'flex';
+        });
+
+        btnCloseModal.addEventListener('click', () => jobModal.style.display = 'none');
+
+        // ── Save Job ──
+        jobForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('job-id').value;
+            const selectedTech = techSelect.value;
+            let currentStatus = "กำลังดำเนินการ";
+            if (document.getElementById('solution').value.trim() !== "" &&
+                document.getElementById('date-close').value !== "" &&
+                tempCustomerSigData !== "") currentStatus = "ปิดงาน";
+            const techs = getSystemTechnicians();
+            const matchedTech = techs.find(t => t.name === selectedTech);
+            const jobData = {
+                id,
+                dateOpen:     document.getElementById('date-open').value,
+                customerName: document.getElementById('customer-name').value.trim(),
+                deviceName:   document.getElementById('device-name').value.trim(),
+                deviceBrand:  document.getElementById('device-brand').value.trim(),
+                deviceModel:  document.getElementById('device-model').value.trim(),
+                serialNumber: document.getElementById('serial-number').value.trim(),
+                deviceCode:   document.getElementById('device-code').value.trim(),
+                accessories:  document.getElementById('accessories').value.trim(),
+                symptom:      document.getElementById('symptom').value.trim(),
+                checkResult:  document.getElementById('check-result').value.trim(),
+                solution:     document.getElementById('solution').value.trim(),
+                warranty:     document.getElementById('warranty').value.trim(),
+                dateClose:    document.getElementById('date-close').value,
+                status:       currentStatus,
+                techName:     selectedTech,
+                techSig:      matchedTech ? matchedTech.sig : "",
+                customerSig:  tempCustomerSigData,
+                images:       [...tempImages]
+            };
+            const jobs = getAllJobs();
+            const idx = jobs.findIndex(x => x.id === jobData.id);
+            if (idx !== -1) jobs[idx] = jobData; else jobs.push(jobData);
+            saveAllJobs(jobs);
+            await saveJobToSheet(jobData);
+            jobModal.style.display = 'none';
+            renderTable();
+            showToast(`บันทึกงาน ${id} เรียบร้อย`, 'success');
+        });
+
+        // ── PDF Preview ──
+        btnClosePreview.addEventListener('click', () => {
+            document.getElementById('pdf-preview-modal').style.display = 'none';
+            document.getElementById('pdf-preview-render-zone').innerHTML = '';
+        });
+
+        btnConfirmDownloadPdf.addEventListener('click', () => {
+            if (!activeJobIdForPDF) return;
+
+            // ดึง CSS ที่เกี่ยวกับ pdf-* ออกมา inject ให้ html2pdf ด้วย
+            const pdfStyles = Array.from(document.styleSheets)
+                .flatMap(sheet => { try { return Array.from(sheet.cssRules); } catch(e) { return []; } })
+                .filter(rule => rule.selectorText && rule.selectorText.includes('pdf'))
+                .map(rule => rule.cssText)
+                .join('\n');
+
+            const zone = document.getElementById('pdf-preview-render-zone');
+            const wrapper = document.createElement('div');
+            const styleTag = document.createElement('style');
+            styleTag.textContent = pdfStyles;
+            wrapper.appendChild(styleTag);
+
+            const content = document.createElement('div');
+            content.innerHTML = zone.innerHTML;
+            wrapper.appendChild(content);
+
+            showLoading('กำลังสร้าง PDF...');
+            html2pdf().from(wrapper).set({
+                margin: 0,
+                filename: `Service_Report_${activeJobIdForPDF}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).save().then(() => {
+                hideLoading();
+                showToast('✅ ดาวน์โหลด PDF สำเร็จ', 'success');
+                document.getElementById('pdf-preview-modal').style.display = 'none';
+            }).catch(err => {
+                hideLoading();
+                showToast('❌ สร้าง PDF ไม่สำเร็จ: ' + err.message, 'error');
+            });
+        });
+
+        // ── Sidebar ──
+        btnOpenSidebar.addEventListener('click', () => { sidebarOverlayBg.style.display = 'block'; sidebarPanel.classList.add('active'); });
+        function closeSidebar() { sidebarOverlayBg.style.display = 'none'; sidebarPanel.classList.remove('active'); }
+        btnCloseSidebar.addEventListener('click', closeSidebar);
+        sidebarOverlayBg.addEventListener('click', closeSidebar);
+        menuDashboardLink.addEventListener('click', closeSidebar);
+        menuSettingLink.addEventListener('click', () => { closeSidebar(); loadCompanyConfig(); renderSettingTechTable(); companySettingModal.style.display = 'flex'; });
+        btnCloseSetting.addEventListener('click', () => companySettingModal.style.display = 'none');
+        btnSystemLogout.addEventListener('click', () => { if (confirm('ออกจากระบบ?')) { closeSidebar(); showToast('ออกจากระบบสำเร็จ', 'warning'); } });
+
+        // ── Logo upload ──
+        cfgCompLogoFile.addEventListener('change', async (e) => {
+            if (e.target.files[0]) {
+                const base64 = await new Promise(r => { const fr = new FileReader(); fr.onload = ev => r(ev.target.result); fr.readAsDataURL(e.target.files[0]); });
+                const compressed = await compressImage(base64, 300, 150, 0.85);
+                cfgLogoPreviewImg.src = compressed;
+            }
+        });
+
+        companySettingForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            companyConfig.name    = cfgCompName.value.trim();
+            companyConfig.address = cfgCompAddress.value.trim();
+            companyConfig.logo    = cfgLogoPreviewImg.src.startsWith('data:image') ? cfgLogoPreviewImg.src : "";
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(companyConfig));
+            companySettingModal.style.display = 'none';
+            showToast('บันทึกข้อมูลบริษัทเรียบร้อย', 'success');
+        });
+
+        document.getElementById('btn-add-tech-to-list').addEventListener('click', async () => {
+            const nameInput = document.getElementById('cfg-tech-name-input');
+            const fileInput = document.getElementById('cfg-tech-sig-input');
+            const name = nameInput.value.trim();
+            if (!name) { alert('กรุณากรอกชื่อช่าง'); return; }
+            let sigBase64 = "";
+            if (fileInput.files[0]) {
+                sigBase64 = await new Promise(r => { const fr = new FileReader(); fr.onload = ev => r(ev.target.result); fr.readAsDataURL(fileInput.files[0]); });
+                sigBase64 = await compressImage(sigBase64, 300, 100, 0.85);
+            } else {
+                sigBase64 = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='50'><text x='10' y='35' style='font: italic bold 24px Brush Script MT, cursive; fill: %231e3a8a;'>${name.substring(0,6)}</text></svg>`;
+            }
+            const techs = getSystemTechnicians();
+            techs.push({ name, sig: sigBase64 });
+            saveSystemTechnicians(techs);
+            nameInput.value = '';
+            fileInput.value = '';
+            renderSettingTechTable();
+            showToast('เพิ่มข้อมูลช่างใหม่สำเร็จ', 'success');
+        });
+
+        // ── Signature canvas ──
+        btnTriggerCustomerSig.addEventListener('click', () => {
+            sigPopup.style.display = 'flex';
+            const rect = customerCanvas.parentElement.getBoundingClientRect();
+            customerCanvas.width = rect.width; customerCanvas.height = 200;
+            ctxCustomer.lineWidth = 3; ctxCustomer.strokeStyle = '#0f172a'; ctxCustomer.lineCap = 'round'; ctxCustomer.lineJoin = 'round';
+            if (tempCustomerSigData) {
+                const img = new Image();
+                img.onload = () => { ctxCustomer.clearRect(0, 0, customerCanvas.width, customerCanvas.height); ctxCustomer.drawImage(img, 0, 0, customerCanvas.width, customerCanvas.height); };
+                img.src = tempCustomerSigData;
+            } else ctxCustomer.clearRect(0, 0, customerCanvas.width, customerCanvas.height);
+        });
+        btnCloseSigPopup.addEventListener('click', () => sigPopup.style.display = 'none');
+        btnClearCanvas.addEventListener('click', () => { ctxCustomer.clearRect(0, 0, customerCanvas.width, customerCanvas.height); tempCustomerSigData = ""; });
+
+        let drawing = false;
+        customerCanvas.addEventListener('mousedown', (e) => { drawing = true; const rect = customerCanvas.getBoundingClientRect(); ctxCustomer.beginPath(); ctxCustomer.moveTo(e.clientX - rect.left, e.clientY - rect.top); });
+        customerCanvas.addEventListener('mousemove', (e) => { if (!drawing) return; const rect = customerCanvas.getBoundingClientRect(); ctxCustomer.lineTo(e.clientX - rect.left, e.clientY - rect.top); ctxCustomer.stroke(); });
+        window.addEventListener('mouseup', () => { drawing = false; });
+        customerCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); drawing = true; const rect = customerCanvas.getBoundingClientRect(); ctxCustomer.beginPath(); ctxCustomer.moveTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); });
+        customerCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (!drawing) return; const rect = customerCanvas.getBoundingClientRect(); ctxCustomer.lineTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); ctxCustomer.stroke(); });
+        window.addEventListener('touchend', () => { drawing = false; });
+
+        btnSaveCustomerSig.addEventListener('click', () => {
+            const imgData = ctxCustomer.getImageData(0, 0, customerCanvas.width, customerCanvas.height);
+            let hasContent = false;
+            for (let i = 3; i < imgData.data.length; i += 4) if (imgData.data[i] > 0) { hasContent = true; break; }
+            if (!hasContent) {
+                tempCustomerSigData = "";
+                customerSigBox.innerHTML = `<span style="color:#94a3b8;">ยังไม่มีการเซ็นชื่อ</span>`;
+            } else {
+                tempCustomerSigData = customerCanvas.toDataURL('image/png');
+                customerSigBox.innerHTML = `<img src="${tempCustomerSigData}" style="max-height:50px;">`;
+            }
+            sigPopup.style.display = 'none';
+        });
+
+        // ── Images ──
+        jobImagesInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                const base64 = await new Promise(r => { const fr = new FileReader(); fr.onload = ev => r(ev.target.result); fr.readAsDataURL(file); });
+                const compressed = await compressImage(base64, 1000, 1000, 0.8);
+                tempImages.push(compressed);
+            }
+            renderImageGrid();
+            jobImagesInput.value = '';
+        });
+
+        searchInput.addEventListener('input', renderTable);
+        imagePreviewModal.addEventListener('click', (e) => { if (e.target === imagePreviewModal) imagePreviewModal.style.display = 'none'; });
+
+        techSelect.addEventListener('change', () => {
+            const selected = techSelect.value;
+            const techs = getSystemTechnicians();
+            const cur = techs.find(t => t.name === selected);
+            if (cur && cur.sig) techSigBox.innerHTML = `<img src="${cur.sig}">`;
+            else techSigBox.innerHTML = `<span style="color:#94a3b8;">กรุณาเลือกชื่อช่าง</span>`;
+        });
+
+        // ── URL Sheet: bind button only ──
+        // (loadUrlsFromSheet / renderUrlTable / deleteUrlFromSheet defined as globals below)
+
+        function renderUrlTable(urls) {
+            const tbody = document.getElementById('url-table-body');
+            if (!urls || urls.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:12px;">ยังไม่มี URL บันทึกไว้</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = '';
+            urls.forEach(item => {
+                const isActive = item.url === SHEET_API_URL;
+                const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                tr.style.background = isActive ? '#eff6ff' : '';
+                tr.innerHTML = `
+                    <td style="padding:7px 10px; font-weight:${isActive?'700':'400'}; color:${isActive?'#1d4ed8':'inherit'};">
+                        ${isActive ? '✅ ' : ''}${item.label || '-'}
+                    </td>
+                    <td style="padding:7px 10px; font-size:11px; color:#475569; max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;" title="${item.url}">${item.url}</td>
+                    <td style="padding:7px 10px; font-size:11px; color:#94a3b8; text-align:center;">${item.savedAt || '-'}</td>
+                    <td style="padding:4px; text-align:center;">
+                        <button class="btn btn-danger btn-sm" type="button" onclick="window.deleteUrlFromSheet('${item.url.replace(/'/g,"\\'")}')">ลบ</button>
+                    </td>
+                `;
+                // คลิกแถว → ใช้ URL นี้
+                tr.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'BUTTON') return;
+                    document.getElementById('gas-url-input').value = item.url;
+                    document.getElementById('gas-url-label').value = item.label || '';
+                    localStorage.setItem('gas_webapp_url', item.url);
+                    SHEET_API_URL = item.url;
+                    testGasConnection();
+                    renderUrlTable(urls); // re-render เพื่ออัปเดต active row
+                    showToast(`เปลี่ยนไปใช้: ${item.label || item.url}`, 'success');
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.deleteUrlFromSheet = async function(url) {
+            if (!confirm('ลบ URL นี้ออกจากชีต?')) return;
+            try {
+                const res = await gasPost({ action: 'deleteUrl', url: url });
+                if (res.ok) {
+                    showToast('ลบ URL เรียบร้อย', 'error');
+                    loadUrlsFromSheet();
+                } else {
+                    showToast('ลบไม่ได้: ' + (res.error || ''), 'error');
+                }
+            } catch(e) { showToast('Connection error', 'error'); }
+        };
+
+    }); // end DOMContentLoaded
+</script>
+</body>
+</html>
