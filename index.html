@@ -547,44 +547,74 @@
     // ==================== COMPANY CONFIG ====================
     let companyConfig = { name: "", address: "", logo: "" };
 
-    async function syncConfigToGAS(cfg) {
+    // บันทึก config ลง localStorage + GAS
+    async function saveConfigEverywhere(cfg) {
+        companyConfig = cfg;
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
         if (!SHEET_API_URL) return;
         try {
-            // logo อาจใหญ่มาก ส่งแยก key เพื่อไม่ให้ request timeout
-            const payload = { companyName: cfg.name || "", companyAddress: cfg.address || "", companyLogo: cfg.logo || "" };
-            await gasPost({ action: 'saveConfig', config: JSON.stringify(payload) });
-        } catch(e) { console.warn('syncConfig failed:', e.message); }
+            const payload = {
+                companyName:    cfg.name    || "",
+                companyAddress: cfg.address || "",
+                companyLogo:    cfg.logo    || ""
+            };
+            const res = await gasPost({ action: 'saveConfig', config: JSON.stringify(payload) });
+            if (!res || !res.ok) console.warn('saveConfig GAS failed:', res);
+        } catch(e) { console.warn('saveConfig error:', e.message); }
     }
 
+    // โหลด config จาก localStorage ใส่ form fields
     function loadCompanyConfig() {
         try {
-            const data = localStorage.getItem(CONFIG_KEY);
-            if (data) {
-                companyConfig = JSON.parse(data);
-                if (cfgCompName)      cfgCompName.value    = companyConfig.name    || "";
-                if (cfgCompAddress)   cfgCompAddress.value = companyConfig.address || "";
-                if (companyConfig.logo && cfgLogoPreviewImg) cfgLogoPreviewImg.src = companyConfig.logo;
-            }
+            const raw = localStorage.getItem(CONFIG_KEY);
+            if (raw) companyConfig = JSON.parse(raw);
+            if (cfgCompName)    cfgCompName.value    = companyConfig.name    || "";
+            if (cfgCompAddress) cfgCompAddress.value = companyConfig.address || "";
+            if (companyConfig.logo && cfgLogoPreviewImg) cfgLogoPreviewImg.src = companyConfig.logo;
         } catch(e) { console.error(e); }
     }
 
-    // โหลด Config จาก GAS แล้วเขียนทับ localStorage (ใช้ตอน init)
-    async function loadConfigFromGAS() {
+    // ดึง Config + Techs จาก GAS → เขียนทับ localStorage → update UI
+    async function syncSettingsFromGAS() {
         if (!SHEET_API_URL) return;
         try {
-            // Config sheet เก็บ key-value ดึงผ่าน getJobs ไม่ได้ ใช้ getConfig แทน
-            // GAS ยังไม่มี action getConfig แบบ key-value → ดึงผ่าน getUrls เป็น proxy
-            // วิธีที่ง่ายที่สุด: เพิ่ม action getConfig ใน GAS (ดูหมายเหตุด้านล่าง)
-        } catch(e) {}
+            const [cfgRes, techRes] = await Promise.all([
+                gasPost({ action: 'getSheetConfig' }),
+                gasPost({ action: 'getTechs' })
+            ]);
+
+            // Config
+            if (cfgRes && cfgRes.ok && cfgRes.data) {
+                const d = cfgRes.data;
+                // GAS key ชื่อ companyName / companyAddress / companyLogo
+                const newCfg = {
+                    name:    d.companyName    || companyConfig.name    || "",
+                    address: d.companyAddress || companyConfig.address || "",
+                    logo:    d.companyLogo    || companyConfig.logo    || ""
+                };
+                companyConfig = newCfg;
+                localStorage.setItem(CONFIG_KEY, JSON.stringify(newCfg));
+                if (cfgCompName)    cfgCompName.value    = newCfg.name;
+                if (cfgCompAddress) cfgCompAddress.value = newCfg.address;
+                if (newCfg.logo && cfgLogoPreviewImg) cfgLogoPreviewImg.src = newCfg.logo;
+            }
+
+            // Techs
+            if (techRes && techRes.ok && Array.isArray(techRes.data) && techRes.data.length > 0) {
+                localStorage.setItem(TECH_STORAGE_KEY, JSON.stringify(techRes.data));
+                initTechnicianSelect();
+                renderSettingTechTable();
+            }
+        } catch(e) { console.warn('syncSettings failed:', e.message); }
     }
 
     // ==================== TECHNICIANS ====================
     async function syncTechsToGAS(techList) {
         if (!SHEET_API_URL) return;
         try {
-            // ลายเซ็นเป็น base64 อาจใหญ่ ส่งแค่ name + sig
-            const payload = techList.map(t => ({ name: t.name, sig: t.sig || "" }));
-            await gasPost({ action: 'saveTechs', techs: JSON.stringify(payload) });
+            await gasPost({ action: 'saveTechs', techs: JSON.stringify(
+                techList.map(t => ({ name: t.name, sig: t.sig || "" }))
+            )});
         } catch(e) { console.warn('syncTechs failed:', e.message); }
     }
 
@@ -684,10 +714,22 @@
 
     // ==================== PDF BUILD ====================
     function buildHTMLContent(job) {
+        // โหลด config ล่าสุดจาก localStorage ทุกครั้ง (ป้องกัน config ว่าง)
+        try {
+            const raw = localStorage.getItem(CONFIG_KEY);
+            if (raw) companyConfig = JSON.parse(raw);
+        } catch(e) {}
+
+        // parse images ถ้ายังเป็น string
+        if (typeof job.images === 'string') {
+            try { job.images = JSON.parse(job.images); } catch(e) { job.images = []; }
+        }
+        if (!Array.isArray(job.images)) job.images = [];
+
         const currentConfig = {
-            name: companyConfig.name || "ศูนย์บริการซ่อมบำรุงเครื่องมือแพทย์",
-            address: companyConfig.address || "รายละเอียดที่อยู่และข้อมูลติดต่อ สามารถแก้ไขได้ที่เมนูตั้งค่าขวามือ",
-            logo: companyConfig.logo || ""
+            name:    companyConfig.name    || "ศูนย์บริการซ่อมบำรุงเครื่องมือแพทย์",
+            address: companyConfig.address || "รายละเอียดที่อยู่และข้อมูลติดต่อ สามารถแก้ไขได้ที่เมนูตั้งค่า",
+            logo:    companyConfig.logo    || ""
         };
         let logoHTML = currentConfig.logo ? `<img src="${currentConfig.logo}" class="pdf-company-logo">` : `<div style="width:45px; height:45px; background:#e2e8f0; display:flex; align-items:center; justify-content:center; border-radius:4px;"><span style="font-size:8px; color:#64748b;">No Logo</span></div>`;
         let htmlContent = `
@@ -736,22 +778,20 @@
         const job = getAllJobs().find(x => x.id === jobId);
         if (!job) { alert('ไม่พบข้อมูล Job: ' + jobId); return; }
 
-        // parse images ถ้าเป็น string (กรณีซิงค์จาก GAS)
-        if (typeof job.images === 'string') {
-            try { job.images = JSON.parse(job.images); } catch(e) { job.images = []; }
-        }
-        if (!Array.isArray(job.images)) job.images = [];
-
         activeJobIdForPDF = jobId;
 
-        const zone = document.getElementById('pdf-preview-render-zone');
+        const zone    = document.getElementById('pdf-preview-render-zone');
         const counter = document.getElementById('preview-page-counter');
-        const modal = document.getElementById('pdf-preview-modal');
+        const modal   = document.getElementById('pdf-preview-modal');
 
+        // buildHTMLContent จัดการ parse images เอง
         zone.innerHTML = buildHTMLContent(job);
 
-        const totalPages = 1 + Math.ceil((job.images.length || 0) / 6);
-        counter.textContent = `📄 ทั้งหมด ${totalPages} หน้า`;
+        // นับหน้า (parse ก่อนนับ)
+        let imgs = job.images;
+        if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
+        if (!Array.isArray(imgs)) imgs = [];
+        counter.textContent = `📄 ทั้งหมด ${1 + Math.ceil(imgs.length / 6)} หน้า`;
         modal.style.display = 'flex';
     };
 
@@ -904,18 +944,27 @@
         if (savedUrl) {
             SHEET_API_URL = savedUrl;
             document.getElementById('gas-url-input').value = savedUrl;
-            await testGasConnection();
+            const labelSaved = localStorage.getItem('gas_webapp_label') || '';
+            document.getElementById('gas-url-label').value = labelSaved;
         } else {
             updateGasStatusUI(false, 'ยังไม่ได้ตั้งค่า URL กรุณาใส่ URL ในช่องด้านบน');
         }
 
+        // โหลด localStorage ก่อน (เร็ว — ใช้งานได้ทันที)
         loadCompanyConfig();
         initTechnicianSelect();
         renderTable();
 
+        // ถ้ามี GAS URL → ทดสอบ + sync ทุกอย่างจาก GAS (ทำ background)
         if (SHEET_API_URL) {
             const connected = await testGasConnection();
-            if (connected) await syncJobsFromGAS();
+            if (connected) {
+                // sync config + techs + jobs พร้อมกัน
+                await Promise.all([
+                    syncSettingsFromGAS(),  // config + techs
+                    syncJobsFromGAS()        // jobs
+                ]);
+            }
         }
 
         // ── GAS UI Events ──
@@ -1076,31 +1125,9 @@
         document.getElementById('btn-load-config-from-gas').addEventListener('click', async () => {
             if (!SHEET_API_URL) { showToast('กรุณาตั้งค่า GAS URL ก่อน', 'warning'); return; }
             showLoading('กำลังโหลดการตั้งค่าจาก Google Sheets...');
-            try {
-                // โหลด Config
-                const cfgRes = await gasPost({ action: 'getSheetConfig' });
-                if (cfgRes && cfgRes.ok && cfgRes.data) {
-                    companyConfig.name    = cfgRes.data.companyName    || companyConfig.name;
-                    companyConfig.address = cfgRes.data.companyAddress || companyConfig.address;
-                    companyConfig.logo    = cfgRes.data.companyLogo    || companyConfig.logo;
-                    localStorage.setItem(CONFIG_KEY, JSON.stringify(companyConfig));
-                    cfgCompName.value    = companyConfig.name;
-                    cfgCompAddress.value = companyConfig.address;
-                    if (companyConfig.logo) cfgLogoPreviewImg.src = companyConfig.logo;
-                }
-                // โหลด Techs
-                const techRes = await gasPost({ action: 'getTechs' });
-                if (techRes && techRes.ok && Array.isArray(techRes.data) && techRes.data.length > 0) {
-                    localStorage.setItem(TECH_STORAGE_KEY, JSON.stringify(techRes.data));
-                    initTechnicianSelect();
-                    renderSettingTechTable();
-                }
-                hideLoading();
-                showToast('✅ โหลดการตั้งค่าจาก Google Sheets สำเร็จ', 'success');
-            } catch(e) {
-                hideLoading();
-                showToast('❌ โหลดไม่สำเร็จ: ' + e.message, 'error');
-            }
+            await syncSettingsFromGAS();
+            hideLoading();
+            showToast('✅ โหลดการตั้งค่าจาก Google Sheets สำเร็จ', 'success');
         });
         btnSystemLogout.addEventListener('click', () => { if (confirm('ออกจากระบบ?')) { closeSidebar(); showToast('ออกจากระบบสำเร็จ', 'warning'); } });
 
@@ -1115,19 +1142,16 @@
 
         companySettingForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            companyConfig.name    = cfgCompName.value.trim();
-            companyConfig.address = cfgCompAddress.value.trim();
-            companyConfig.logo    = cfgLogoPreviewImg.src.startsWith('data:image') ? cfgLogoPreviewImg.src : "";
-            // 1) บันทึก localStorage
-            localStorage.setItem(CONFIG_KEY, JSON.stringify(companyConfig));
-            // 2) sync ขึ้น GAS
-            if (SHEET_API_URL) {
-                showLoading('กำลังบันทึกข้อมูลบริษัทลง Google Sheets...');
-                await syncConfigToGAS(companyConfig);
-                hideLoading();
-            }
+            const newCfg = {
+                name:    cfgCompName.value.trim(),
+                address: cfgCompAddress.value.trim(),
+                logo:    cfgLogoPreviewImg.src.startsWith('data:image') ? cfgLogoPreviewImg.src : (companyConfig.logo || "")
+            };
+            showLoading('กำลังบันทึกและซิงค์ขึ้น Google Sheets...');
+            await saveConfigEverywhere(newCfg);
+            hideLoading();
             companySettingModal.style.display = 'none';
-            showToast('✅ บันทึกข้อมูลบริษัทเรียบร้อย' + (SHEET_API_URL ? ' และซิงค์ขึ้น Sheets แล้ว' : ''), 'success');
+            showToast('✅ บันทึกข้อมูลบริษัท' + (SHEET_API_URL ? ' และซิงค์ขึ้น Sheets แล้ว' : ' ลง localStorage แล้ว'), 'success');
         });
 
         document.getElementById('btn-add-tech-to-list').addEventListener('click', async () => {
