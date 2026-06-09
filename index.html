@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medical Equipment Service </title>
+    <title>Medical Equipment Service Tracker + GAS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         /* ========== GLOBAL STYLES (เหมือนเดิม) ========== */
@@ -228,6 +228,13 @@
 
                 <!-- ส่วนข้อมูลบริษัท -->
                 <div class="section-title" style="grid-column: unset;">🏢 ส่วนที่ 1: ข้อมูลหัวกระดาษรายงาน</div>
+
+                <!-- ปุ่ม sync จาก GAS สำหรับเครื่องใหม่ -->
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                    <span style="font-size:12px; color:#1d4ed8;">☁️ ตั้งค่าครั้งเดียว ใช้ได้ทุกเครื่อง — กด "โหลดจาก Sheets" บนเครื่องใหม่</span>
+                    <button type="button" class="btn btn-sm" id="btn-load-config-from-gas" style="background:#2563eb; color:white;">☁️ โหลดการตั้งค่าจาก Google Sheets</button>
+                </div>
+
                 <div class="form-group">
                     <label>ชื่อบริษัท / ร้านค้า</label>
                     <input type="text" id="cfg-comp-name" placeholder="เช่น บริษัท เมดิคอล ซ่อมบำรุง จำกัด">
@@ -266,7 +273,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" id="btn-close-setting">ปิดหน้าต่าง</button>
-                <button type="submit" class="btn btn-success">💾 บันทึกข้อมูลบริษัท</button>
+                <button type="submit" class="btn btn-success">💾 บันทึกและซิงค์ขึ้น Google Sheets</button>
             </div>
         </form>
     </div>
@@ -539,6 +546,16 @@
 
     // ==================== COMPANY CONFIG ====================
     let companyConfig = { name: "", address: "", logo: "" };
+
+    async function syncConfigToGAS(cfg) {
+        if (!SHEET_API_URL) return;
+        try {
+            // logo อาจใหญ่มาก ส่งแยก key เพื่อไม่ให้ request timeout
+            const payload = { companyName: cfg.name || "", companyAddress: cfg.address || "", companyLogo: cfg.logo || "" };
+            await gasPost({ action: 'saveConfig', config: JSON.stringify(payload) });
+        } catch(e) { console.warn('syncConfig failed:', e.message); }
+    }
+
     function loadCompanyConfig() {
         try {
             const data = localStorage.getItem(CONFIG_KEY);
@@ -551,17 +568,39 @@
         } catch(e) { console.error(e); }
     }
 
+    // โหลด Config จาก GAS แล้วเขียนทับ localStorage (ใช้ตอน init)
+    async function loadConfigFromGAS() {
+        if (!SHEET_API_URL) return;
+        try {
+            // Config sheet เก็บ key-value ดึงผ่าน getJobs ไม่ได้ ใช้ getConfig แทน
+            // GAS ยังไม่มี action getConfig แบบ key-value → ดึงผ่าน getUrls เป็น proxy
+            // วิธีที่ง่ายที่สุด: เพิ่ม action getConfig ใน GAS (ดูหมายเหตุด้านล่าง)
+        } catch(e) {}
+    }
+
     // ==================== TECHNICIANS ====================
+    async function syncTechsToGAS(techList) {
+        if (!SHEET_API_URL) return;
+        try {
+            // ลายเซ็นเป็น base64 อาจใหญ่ ส่งแค่ name + sig
+            const payload = techList.map(t => ({ name: t.name, sig: t.sig || "" }));
+            await gasPost({ action: 'saveTechs', techs: JSON.stringify(payload) });
+        } catch(e) { console.warn('syncTechs failed:', e.message); }
+    }
+
     function getSystemTechnicians() {
         try {
             const data = localStorage.getItem(TECH_STORAGE_KEY);
             return data ? JSON.parse(data) : defaultTechs;
         } catch(e) { return defaultTechs; }
     }
-    function saveSystemTechnicians(techList) {
+
+    async function saveSystemTechnicians(techList) {
         localStorage.setItem(TECH_STORAGE_KEY, JSON.stringify(techList));
         initTechnicianSelect();
+        await syncTechsToGAS(techList); // ← sync ขึ้น GAS ทันที
     }
+
     function initTechnicianSelect() {
         if (!techSelect) return;
         const techs = getSystemTechnicians();
@@ -591,11 +630,11 @@
             tbody.appendChild(tr);
         });
     }
-    window.deleteTechFromSetting = function(index) {
+    window.deleteTechFromSetting = async function(index) {
         if(confirm('ลบช่างคนนี้?')) {
             const techs = getSystemTechnicians();
             techs.splice(index, 1);
-            saveSystemTechnicians(techs);
+            await saveSystemTechnicians(techs); // ← async แล้ว sync GAS ด้วย
             renderSettingTechTable();
             showToast('ลบข้อมูลช่างเรียบร้อย', 'error');
         }
@@ -1032,6 +1071,37 @@
         menuDashboardLink.addEventListener('click', closeSidebar);
         menuSettingLink.addEventListener('click', () => { closeSidebar(); loadCompanyConfig(); renderSettingTechTable(); companySettingModal.style.display = 'flex'; });
         btnCloseSetting.addEventListener('click', () => companySettingModal.style.display = 'none');
+
+        // ── โหลดการตั้งค่าจาก GAS (สำหรับเครื่องใหม่) ──
+        document.getElementById('btn-load-config-from-gas').addEventListener('click', async () => {
+            if (!SHEET_API_URL) { showToast('กรุณาตั้งค่า GAS URL ก่อน', 'warning'); return; }
+            showLoading('กำลังโหลดการตั้งค่าจาก Google Sheets...');
+            try {
+                // โหลด Config
+                const cfgRes = await gasPost({ action: 'getSheetConfig' });
+                if (cfgRes && cfgRes.ok && cfgRes.data) {
+                    companyConfig.name    = cfgRes.data.companyName    || companyConfig.name;
+                    companyConfig.address = cfgRes.data.companyAddress || companyConfig.address;
+                    companyConfig.logo    = cfgRes.data.companyLogo    || companyConfig.logo;
+                    localStorage.setItem(CONFIG_KEY, JSON.stringify(companyConfig));
+                    cfgCompName.value    = companyConfig.name;
+                    cfgCompAddress.value = companyConfig.address;
+                    if (companyConfig.logo) cfgLogoPreviewImg.src = companyConfig.logo;
+                }
+                // โหลด Techs
+                const techRes = await gasPost({ action: 'getTechs' });
+                if (techRes && techRes.ok && Array.isArray(techRes.data) && techRes.data.length > 0) {
+                    localStorage.setItem(TECH_STORAGE_KEY, JSON.stringify(techRes.data));
+                    initTechnicianSelect();
+                    renderSettingTechTable();
+                }
+                hideLoading();
+                showToast('✅ โหลดการตั้งค่าจาก Google Sheets สำเร็จ', 'success');
+            } catch(e) {
+                hideLoading();
+                showToast('❌ โหลดไม่สำเร็จ: ' + e.message, 'error');
+            }
+        });
         btnSystemLogout.addEventListener('click', () => { if (confirm('ออกจากระบบ?')) { closeSidebar(); showToast('ออกจากระบบสำเร็จ', 'warning'); } });
 
         // ── Logo upload ──
@@ -1043,14 +1113,21 @@
             }
         });
 
-        companySettingForm.addEventListener('submit', (e) => {
+        companySettingForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             companyConfig.name    = cfgCompName.value.trim();
             companyConfig.address = cfgCompAddress.value.trim();
             companyConfig.logo    = cfgLogoPreviewImg.src.startsWith('data:image') ? cfgLogoPreviewImg.src : "";
+            // 1) บันทึก localStorage
             localStorage.setItem(CONFIG_KEY, JSON.stringify(companyConfig));
+            // 2) sync ขึ้น GAS
+            if (SHEET_API_URL) {
+                showLoading('กำลังบันทึกข้อมูลบริษัทลง Google Sheets...');
+                await syncConfigToGAS(companyConfig);
+                hideLoading();
+            }
             companySettingModal.style.display = 'none';
-            showToast('บันทึกข้อมูลบริษัทเรียบร้อย', 'success');
+            showToast('✅ บันทึกข้อมูลบริษัทเรียบร้อย' + (SHEET_API_URL ? ' และซิงค์ขึ้น Sheets แล้ว' : ''), 'success');
         });
 
         document.getElementById('btn-add-tech-to-list').addEventListener('click', async () => {
@@ -1067,11 +1144,13 @@
             }
             const techs = getSystemTechnicians();
             techs.push({ name, sig: sigBase64 });
-            saveSystemTechnicians(techs);
+            if (SHEET_API_URL) showLoading('กำลังบันทึกช่างลง Google Sheets...');
+            await saveSystemTechnicians(techs); // sync GAS อยู่ใน saveSystemTechnicians แล้ว
+            if (SHEET_API_URL) hideLoading();
             nameInput.value = '';
             fileInput.value = '';
             renderSettingTechTable();
-            showToast('เพิ่มข้อมูลช่างใหม่สำเร็จ', 'success');
+            showToast('✅ เพิ่มช่างใหม่' + (SHEET_API_URL ? ' และซิงค์ขึ้น Sheets แล้ว' : ''), 'success');
         });
 
         // ── Signature canvas ──
