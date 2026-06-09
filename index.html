@@ -303,6 +303,7 @@
                 <div class="form-group-full"><label>อาการที่แจ้งเสีย *</label><textarea id="symptom" placeholder="ระบุอาการเสียที่ได้รับแจ้งอย่างละเอียด" required></textarea></div>
 
                 <div class="section-title">3. บันทึกทางเทคนิคและการปิดงาน</div>
+                <div id="close-job-hint" style="grid-column:1/-1; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; color:#64748b; font-size:12px;">เปิดงานแก้ไขเพื่อดูสถานะเงื่อนไขปิดงาน</div>
                 <div class="form-group-2cols"><label>ผลการตรวจเช็ค</label><textarea id="check-result" placeholder="ระบุผลตรวจเช็คระบบกายภาพ/ระบบไฟ"></textarea></div>
                 <div class="form-group"><label>การรับประกัน (หลังซ่อม)</label><input type="text" id="warranty" placeholder="เช่น รับประกัน 3 เดือน"></div>
                 <div class="form-group-2cols"><label>ผลการซ่อม / วิธีการแก้ไข</label><textarea id="solution" placeholder="ระบุวิธีแก้ไขและรายละเอียดอะไหล่ที่เปลี่ยน"></textarea></div>
@@ -394,8 +395,16 @@
     async function gasPost(params) {
         if (!SHEET_API_URL) return { ok: false, error: 'GAS_NOT_CONFIGURED' };
         try {
-            const body = new URLSearchParams(params);
-            const res = await fetch(SHEET_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+            // ใช้ raw string แทน URLSearchParams เพราะ base64 รูปภาพมีขนาดใหญ่
+            // URLSearchParams จะ encode & ทำให้ payload พัง
+            const parts = Object.keys(params).map(k =>
+                encodeURIComponent(k) + '=' + encodeURIComponent(params[k])
+            ).join('&');
+            const res = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: parts
+            });
             return await res.json();
         } catch(e) {
             return { ok: false, error: e.message };
@@ -524,7 +533,33 @@
     function getAllJobs() { try { const d = localStorage.getItem(STORAGE_KEY); return d ? JSON.parse(d) : []; } catch(e) { return []; } }
     function saveAllJobs(jobs) { localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs)); }
     function deleteJob(id) { let j = getAllJobs().filter(x => x.id !== id); saveAllJobs(j); return j; }
-    async function saveJobToSheet(jobData) { try { const res = await gasPost({ action:'saveJob', job: JSON.stringify(jobData) }); return res.ok; } catch(e) { return false; } }
+    async function saveJobToSheet(jobData) {
+        if (!SHEET_API_URL) return false;
+        try {
+            // compress รูปก่อนส่ง (GAS มี limit ~50MB per request แต่ควรส่งน้อยกว่า 5MB)
+            let imagesForSheet = [];
+            if (Array.isArray(jobData.images) && jobData.images.length > 0) {
+                for (const img of jobData.images) {
+                    if (!img) continue;
+                    if (img.startsWith('data:image')) {
+                        // base64 → compress ให้เล็กลง
+                        const small = await compressImage(img, 800, 800, 0.65);
+                        imagesForSheet.push(small);
+                    } else {
+                        // URL ปกติ (เช่น Google Drive) เก็บตรงๆ
+                        imagesForSheet.push(img);
+                    }
+                }
+            }
+            const payload = { ...jobData, images: imagesForSheet };
+            const res = await gasPost({ action: 'saveJob', job: JSON.stringify(payload) });
+            if (!res.ok) console.warn('saveJob GAS error:', res.error);
+            return res.ok;
+        } catch(e) {
+            console.warn('saveJobToSheet error:', e.message);
+            return false;
+        }
+    }
 
     function generateNextJobId() {
         const jobs = getAllJobs();
@@ -796,63 +831,125 @@
     };
 
     // ==================== RENDER TABLE ====================
+    let showClosedJobs = false; // toggle แสดงงานปิดแล้ว
+
     function renderTable() {
         if (!jobTableBody || !searchInput) return;
         const jobs = getAllJobs();
         const keyword = searchInput.value.trim().toLowerCase();
-        let filteredJobs = keyword ? jobs.filter(j => j.id.toLowerCase().includes(keyword) || j.customerName.toLowerCase().includes(keyword) || j.deviceName.toLowerCase().includes(keyword)) : jobs.filter(j => j.status !== 'ปิดงาน');
-        filteredJobs.sort((a,b) => new Date(b.dateOpen) - new Date(a.dateOpen));
+        const statusBar = document.getElementById('table-status-info');
+
+        let filteredJobs;
+        if (keyword) {
+            // มี keyword → ค้นหาทุกสถานะ
+            filteredJobs = jobs.filter(j =>
+                (j.id || '').toLowerCase().includes(keyword) ||
+                (j.customerName || '').toLowerCase().includes(keyword) ||
+                (j.deviceName || '').toLowerCase().includes(keyword) ||
+                (j.symptom || '').toLowerCase().includes(keyword)
+            );
+            if (statusBar) statusBar.textContent = `🔍 ผลการค้นหา "${keyword}" — พบ ${filteredJobs.length} รายการ (ทุกสถานะ)`;
+        } else if (showClosedJobs) {
+            filteredJobs = [...jobs];
+            if (statusBar) statusBar.textContent = `📋 แสดงทุกงาน — ทั้งหมด ${filteredJobs.length} รายการ`;
+        } else {
+            filteredJobs = jobs.filter(j => j.status !== 'ปิดงาน');
+            const closedCount = jobs.filter(j => j.status === 'ปิดงาน').length;
+            if (statusBar) statusBar.innerHTML = `📂 งานที่ยังไม่ปิด: <strong>${filteredJobs.length}</strong> รายการ &nbsp;|&nbsp; ปิดแล้ว: ${closedCount} รายการ &nbsp;<button type="button" onclick="window.toggleClosedJobs()" style="font-size:11px; padding:2px 8px; border:1px solid #94a3b8; border-radius:4px; cursor:pointer; background:white;">แสดงทั้งหมด</button>`;
+        }
+
+        filteredJobs.sort((a, b) => new Date(b.dateOpen || 0) - new Date(a.dateOpen || 0));
         jobTableBody.innerHTML = '';
+
         if (filteredJobs.length === 0) {
             jobTableBody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#64748b; padding:30px;">ไม่พบข้อมูลใบงานซ่อม</td></tr>`;
             return;
         }
+
         filteredJobs.forEach(job => {
-            const badge = job.status === 'ปิดงาน' ? '<span class="badge badge-completed">ปิดงาน</span>' : '<span class="badge badge-progress">รอดำเนินการ</span>';
-            const imgCount = job.images?.length || 0;
+            const isClosed = job.status === 'ปิดงาน';
+            const badge = isClosed
+                ? '<span class="badge badge-completed">ปิดงาน</span>'
+                : '<span class="badge badge-progress">กำลังดำเนินการ</span>';
+
+            // parse images ถ้าเป็น string (sync จาก GAS)
+            let imgs = job.images;
+            if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
+            if (!Array.isArray(imgs)) imgs = [];
+            const imgCount = imgs.length;
+
             const tr = document.createElement('tr');
+            if (isClosed) tr.style.opacity = '0.6';
             tr.innerHTML = `
-                <td><strong>${job.id}</strong>${badge}</td>
-                <td>${job.dateOpen}</td>
-                <td><strong>${job.customerName}</strong></td>
-                <td>${job.deviceName}</td>
-                <td>${job.deviceBrand}</td>
-                <td>${job.deviceModel}</td>
-                <td style="max-width:180px; white-space:nowrap; overflow:hidden;">${job.symptom}</td>
+                <td><strong>${job.id || ''}</strong> ${badge}</td>
+                <td>${job.dateOpen || ''}</td>
+                <td><strong>${job.customerName || ''}</strong></td>
+                <td>${job.deviceName || ''}</td>
+                <td>${job.deviceBrand || ''}</td>
+                <td>${job.deviceModel || ''}</td>
+                <td style="max-width:180px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">${job.symptom || ''}</td>
                 <td style="text-align:center;">${imgCount ? `📷 ${imgCount}` : '-'}</td>
-                <td style="text-align:center;"><button class="btn btn-sm" onclick="window.editJobTrigger('${job.id}')">แก้ไข/ดู</button> <button class="btn btn-sm btn-success" onclick="window.triggerPDFPreview('${job.id}')">พิมพ์</button> <button class="btn btn-sm btn-danger" onclick="window.deleteJobTrigger('${job.id}')">ลบ</button></td>
-            `;
+                <td style="text-align:center; white-space:nowrap;">
+                    <button class="btn btn-sm" onclick="window.editJobTrigger('${job.id}')">✏️ แก้ไข</button>
+                    <button class="btn btn-sm btn-success" onclick="window.triggerPDFPreview('${job.id}')">🖨️ พิมพ์</button>
+                    <button class="btn btn-sm btn-danger" onclick="window.deleteJobTrigger('${job.id}')">ลบ</button>
+                </td>`;
             jobTableBody.appendChild(tr);
         });
     }
 
+    window.toggleClosedJobs = function() {
+        showClosedJobs = !showClosedJobs;
+        renderTable();
+    };
+
     window.editJobTrigger = function(id) {
         const job = getAllJobs().find(x => x.id === id);
         if (!job) return;
-        document.getElementById('job-id').value = job.id;
-        document.getElementById('date-open').value = job.dateOpen;
-        document.getElementById('customer-name').value = job.customerName;
-        document.getElementById('device-name').value = job.deviceName;
-        document.getElementById('device-brand').value = job.deviceBrand;
-        document.getElementById('device-model').value = job.deviceModel;
-        document.getElementById('serial-number').value = job.serialNumber;
-        document.getElementById('device-code').value = job.deviceCode || '';
-        document.getElementById('accessories').value = job.accessories || '';
-        document.getElementById('symptom').value = job.symptom;
-        document.getElementById('check-result').value = job.checkResult || '';
-        document.getElementById('solution').value = job.solution || '';
-        document.getElementById('warranty').value = job.warranty || '';
-        document.getElementById('date-close').value = job.dateClose || '';
+        document.getElementById('job-id').value          = job.id;
+        document.getElementById('date-open').value        = job.dateOpen || '';
+        document.getElementById('customer-name').value    = job.customerName || '';
+        document.getElementById('device-name').value      = job.deviceName || '';
+        document.getElementById('device-brand').value     = job.deviceBrand || '';
+        document.getElementById('device-model').value     = job.deviceModel || '';
+        document.getElementById('serial-number').value    = job.serialNumber || '';
+        document.getElementById('device-code').value      = job.deviceCode || '';
+        document.getElementById('accessories').value      = job.accessories || '';
+        document.getElementById('symptom').value          = job.symptom || '';
+        document.getElementById('check-result').value     = job.checkResult || '';
+        document.getElementById('solution').value         = job.solution || '';
+        document.getElementById('warranty').value         = job.warranty || '';
+        document.getElementById('date-close').value       = job.dateClose || '';
         techSelect.value = job.techName || '';
-        if(job.techSig) techSigBox.innerHTML = `<img src="${job.techSig}">`;
+        if (job.techSig) techSigBox.innerHTML = `<img src="${job.techSig}" style="max-height:50px;">`;
         else techSigBox.innerHTML = `<span style="color:#94a3b8;">ไม่มีลายเซ็นช่าง</span>`;
-        tempCustomerSigData = job.customerSig || "";
-        customerSigBox.innerHTML = tempCustomerSigData ? `<img src="${tempCustomerSigData}">` : `<span style="color:#94a3b8;">ยังไม่มีการเซ็นชื่อ</span>`;
-        tempImages = Array.isArray(job.images) ? [...job.images] : [];
+        tempCustomerSigData = job.customerSig || '';
+        customerSigBox.innerHTML = tempCustomerSigData
+            ? `<img src="${tempCustomerSigData}" style="max-height:50px;">`
+            : `<span style="color:#94a3b8;">ยังไม่มีการเซ็นชื่อ</span>`;
+
+        // parse images ถ้าเป็น string (sync จาก GAS)
+        let imgs = job.images;
+        if (typeof imgs === 'string') { try { imgs = JSON.parse(imgs); } catch(e) { imgs = []; } }
+        tempImages = Array.isArray(imgs) ? [...imgs] : [];
         renderImageGrid();
+
         modalTitle.innerText = `แก้ไขใบงานซ่อม [เลขที่: ${job.id}]`;
         btnModalPrint.style.display = 'block';
         btnModalPrint.onclick = () => window.triggerPDFPreview(job.id);
+
+        // แสดง hint เงื่อนไขปิดงานใน modal
+        const hint = document.getElementById('close-job-hint');
+        if (hint) {
+            const ok1 = (job.solution || '').trim() !== '';
+            const ok2 = (job.dateClose || '') !== '';
+            const ok3 = !!tempCustomerSigData;
+            hint.innerHTML = `<small>เงื่อนไขปิดงาน: &nbsp;
+                <span style="color:${ok1?'#16a34a':'#dc2626'}">${ok1?'✅':'❌'} วิธีแก้ไข</span> &nbsp;
+                <span style="color:${ok2?'#16a34a':'#dc2626'}">${ok2?'✅':'❌'} วันที่ปิด</span> &nbsp;
+                <span style="color:${ok3?'#16a34a':'#dc2626'}">${ok3?'✅':'❌'} ลายเซ็นลูกค้า</span>
+            </small>`;
+        }
         jobModal.style.display = 'flex';
     };
 
